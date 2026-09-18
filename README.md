@@ -1,22 +1,51 @@
 # Cash Compass for Android
 
-Cash Compass is an offline-first cash-flow coach for people with hourly or irregular income. Users enter upcoming income, bills, and goals; the app turns those into a clear safe-to-spend estimate, a bill timeline, and lightweight coaching prompts.
+An offline cash-flow planner for hourly and irregular income.
 
-## What is included
+## Download and install
 
-- A native Android wrapper (`app/`) that launches the local app interface in a `WebView`
-- A complete, responsive interface in `app/src/main/assets/index.html`
-- Local-only persistence with `localStorage`—there are no account connections, bank credentials, analytics SDKs, or network requests
-- Editable income, bills, goals, hourly-rate scenario planning, notifications preferences, and a planning-only coach
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.1.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
-## Open in Android Studio
+This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
 
-1. Open this folder in Android Studio Hedgehog or newer.
-2. Let Gradle install Android SDK Platform 35 if prompted.
-3. Run the `app` configuration on an emulator or an Android device running Android 7.0 or later.
+## What works
 
-The supplied project uses Android Gradle Plugin 8.6.1 and JDK 17. It intentionally has no external runtime dependencies.
+- Enter and edit cash, expected gross or take-home income, unpaid bills, reserves, and goals.
+- See estimated available spending through payday and a separate 30-day cash forecast.
+- Keep overdue bills visible; confirm received income and paid bills with balance reconciliation.
+- Model fewer hours without altering current cash.
+- Ask the offline, rules-based coach about the entered forecast.
+- Copy and restore a local JSON backup. Sample data is optional.
 
-## Product boundaries
+The coach is not yet a connected AI model. Phone notifications and recurring payments are not implemented; in-app due/overdue notices work. Amounts are USD. No account or bank credentials are required. See [privacy](PRIVACY.md) and [release notes](RELEASE_NOTES.md).
 
-Cash Compass is not a bank-linking or investment-advice product. Its forecasts are estimates derived from user-provided data, and the in-app coach explicitly avoids investment recommendations. Before any production launch, add an appropriate privacy policy, terms, secure backup/sync architecture, accessibility review, and professional legal/compliance review.
+## Calculation rules
+
+Current cash includes the money reserved for goals, taxes, and the safety buffer. Estimated spending through payday subtracts those reserves and all unpaid bills dated on or before payday, including overdue bills. Without a next payday, no safe-to-spend figure is shown. Daily amounts round down to cents.
+
+The 30-day timeline deducts bills before income on the same date. Late income is excluded until received or rescheduled. Gross income uses the user's tax percentage; take-home income is not taxed again. Goal extra reserves apply once per forecast and are capped at the remaining goal target. Goal progress and extra reserves are planning amounts; no transfers occur. Fewer-hours scenarios reduce the next expected payment (capped at that payment), not cash already available. Actual spending, payment delays, and missing bills must be reflected manually.
+
+## Build and verify
+
+The [Android workflow](.github/workflows/android.yml) uses JDK 17, Gradle 8.7, Android Gradle Plugin 8.6.1, SDK 35, and build tools 34.0.0. It runs forecast tests, Android lint, an Android 15 emulator smoke test, and signature verification before publishing an APK and SHA-256 checksum. Instrumentation test dependencies are used only in tests; the app has no external runtime libraries.
+
+For local builds install those tools, set ANDROID_HOME, then run:
+
+```sh
+node --test tests/core.test.cjs
+gradle :app:assembleDebug :app:lintDebug
+# With an emulator or device connected:
+gradle :app:connectedDebugAndroidTest
+```
+
+APK: `app/build/outputs/apk/debug/app-debug.apk`.
+Open the project with an Android Studio version supporting AGP 8.6.1, or use the pinned Gradle installation above. A Gradle wrapper is not committed; CI supplies Gradle explicitly.
+
+## Source
+
+- `core.js`: pure date, cent-based cash, reservation, migration, and settlement logic.
+- `app.js` / `app.css`: interface, validated local persistence, and coaching explanations.
+- `MainActivity.java`: restricted local-asset WebView, Android back handling, and system insets.
+- `tests/core.test.cjs` and `AppSmokeTest.java`: forecast regressions and installed-app smoke test.
+
+See [REVIEW.md](REVIEW.md) for findings, fixes, and verification boundaries.
