@@ -28,6 +28,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          cmdline-tools-version: '12266719'
       - name: Test cash-flow calculations and JavaScript syntax
         run: |
           node --test tests/core.test.cjs
