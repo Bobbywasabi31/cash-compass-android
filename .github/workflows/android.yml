@@ -34,7 +34,7 @@ jobs:
           cmdline-tools-version: '12266719'
       - name: Test cash-flow calculations and JavaScript syntax
         run: |
-          node --test tests/core.test.cjs
+          node --test tests/*.test.cjs
           node --check app/src/main/assets/app.js
       - name: Install Android SDK packages
         run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0'
@@ -54,7 +54,7 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
-            gradle --no-daemon :app:connectedDebugAndroidTest            # Connected tests remove the app during cleanup; reinstall it for the screenshot.
+            gradle --no-daemon :app:connectedDebugAndroidTest # Connected tests remove the app during cleanup; reinstall it for the screenshot.
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -n com.cashcompass.app.preview/com.cashcompass.app.MainActivity
             sleep 2
@@ -63,10 +63,10 @@ jobs:
       - name: Prepare verified APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Cash-Compass-1.1.0-preview.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/Cash-Compass-1.1.0-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Cash-Compass-1.3.0-preview.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/Cash-Compass-1.3.0-preview.apk
           cd dist
-          sha256sum Cash-Compass-1.1.0-preview.apk > SHA256SUMS.txt
+          sha256sum Cash-Compass-1.3.0-preview.apk > SHA256SUMS.txt
       - name: Save build and test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,5 +83,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v1.1.0-preview.${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" dist/Cash-Compass-1.1.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cash Compass 1.1.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file RELEASE_NOTES.md
+          tag="v1.3.0-preview.${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" dist/Cash-Compass-1.3.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cash Compass 1.3.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file RELEASE_NOTES.md
