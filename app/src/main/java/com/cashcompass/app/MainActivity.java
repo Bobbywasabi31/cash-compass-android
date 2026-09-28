@@ -19,6 +19,8 @@ import java.io.IOException;
 public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net/";
     private WebView app;
+    private String pendingCSV;
+    private static final int OPEN_CSV = 41, SAVE_CSV = 42, NOTIFICATIONS = 43;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override public void onCreate(Bundle savedInstanceState) {
@@ -50,6 +52,7 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         app.setBackgroundColor(Color.parseColor("#F8F7F4"));
+        app.addJavascriptInterface(new Bridge(), "NativeBridge");
         app.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return !request.getUrl().toString().equals(ORIGIN + "index.html");
@@ -88,6 +91,100 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() { handleBack(); }
     public WebView getAppWebView() { return app; }
+
+    private void callback(String function, String text) {
+        runOnUiThread(() -> {
+            if (!isFinishing() && !isDestroyed())
+                app.evaluateJavascript("window." + function + " && window." + function + "(" + org.json.JSONObject.quote(text) + ")", null);
+        });
+    }
+
+    public final class Bridge {
+        @android.webkit.JavascriptInterface public boolean notificationsAllowed() {
+            return getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
+        }
+        @android.webkit.JavascriptInterface public void requestNotifications() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATIONS);
+                } else if (!notificationsAllowed()) {
+                    startActivity(new android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName()));
+                }
+            });
+        }
+        @android.webkit.JavascriptInterface public void syncBills(String json) {
+            try {
+                org.json.JSONObject input = new org.json.JSONObject(json);
+                org.json.JSONArray bills = input.getJSONArray("bills"), dates = new org.json.JSONArray();
+                if (bills.length() > 10000) throw new IllegalArgumentException();
+                for (int i = 0; i < bills.length(); i++) {
+                    String date = bills.getJSONObject(i).getString("date");
+                    if (!date.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) throw new IllegalArgumentException();
+                    dates.put(date);
+                }
+                getSharedPreferences("reminders", MODE_PRIVATE).edit().putBoolean("enabled", input.optBoolean("enabled"))
+                    .putString("dates", dates.toString()).apply();
+                BillReminder.schedule(MainActivity.this);
+            } catch (Exception e) { callback("cashCompassNotice", "Could not update bill reminders."); }
+        }
+        @android.webkit.JavascriptInterface public void openCSV() {
+            runOnUiThread(() -> {
+                try { startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("*/*"), OPEN_CSV); }
+                catch (android.content.ActivityNotFoundException e) { callback("cashCompassNotice", "No file picker available. Paste CSV text instead."); }
+            });
+        }
+        @android.webkit.JavascriptInterface public void saveCSV(String text) {
+            if (text == null || text.length() > 8000000) { callback("cashCompassNotice", "Export is too large."); return; }
+            runOnUiThread(() -> {
+                if (pendingCSV != null) { callback("cashCompassNotice", "Finish the current export first."); return; }
+                pendingCSV = text;
+                try { startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("text/csv")
+                    .putExtra(android.content.Intent.EXTRA_TITLE, "Cash-Compass-transactions.csv"), SAVE_CSV); }
+                catch (android.content.ActivityNotFoundException e) { pendingCSV = null; callback("cashCompassNotice", "No file picker available."); }
+            });
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == NOTIFICATIONS) callback("cashCompassNotice", new Bridge().notificationsAllowed()
+            ? "Bill reminders enabled." : "Notifications are blocked. Enable them in Android settings to receive reminders.");
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != OPEN_CSV && requestCode != SAVE_CSV) return;
+        final String export = pendingCSV;
+        if (requestCode == SAVE_CSV) pendingCSV = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        final android.net.Uri uri = data.getData();
+        new Thread(() -> {
+            try {
+                if (requestCode == OPEN_CSV) {
+                    try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                        if (in == null) throw new IOException();
+                        byte[] buffer = new byte[8192]; int count;
+                        while ((count = in.read(buffer)) != -1) {
+                            if (out.size() + count > 2000000) throw new IOException("Choose a CSV smaller than 2 MB.");
+                            out.write(buffer, 0, count);
+                        }
+                        callback("cashCompassCSV", out.toString("UTF-8"));
+                    }
+                } else {
+                    if (export == null) throw new IOException("Export was interrupted. Please export again.");
+                    try (java.io.OutputStream out = getContentResolver().openOutputStream(uri, "wt")) {
+                        if (out == null) throw new IOException();
+                        out.write(export.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                    callback("cashCompassNotice", "CSV saved.");
+                }
+            } catch (Exception e) { callback("cashCompassNotice", e.getMessage() == null ? "Could not read or save this file." : e.getMessage()); }
+        }, "cash-compass-files").start();
+    }
 
     @Override protected void onDestroy() {
         if (app != null) {
