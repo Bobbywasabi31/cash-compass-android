@@ -29,8 +29,11 @@ public class AppSmokeTest {
         assertTrue("Offline app did not render", ready);
         assertEquals("true", js("document.body.textContent.includes('Add payday')"));
         assertEquals("true", js("document.querySelector('[data-tab=profile]').click(); !!document.querySelector('#profileForm')"));
-        assertEquals("true", js("document.querySelector('[name=name]').value='Android test'; document.querySelector('[name=balance]').value='250.50'; document.querySelector('#profileForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===250.5"));
-        for (String tab : new String[]{"plan", "transactions", "budgets", "profile", "goals", "profile", "coach", "home"}) {
+        assertEquals("true", js("document.querySelector('[name=name]').value='Android test'; document.querySelector('#profileForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).profile.name==='Android test'"));
+        assertEquals("true", js("document.querySelector('[data-tab=accounts]').click(); document.querySelector('[data-edit]').click(); document.querySelector('[name=balance]').value='250.50'; document.querySelector('#accountForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===250.5"));
+        assertEquals("true", js("typeof NativeBridge.notificationsAllowed()==='boolean'"));
+        assertEquals(2, BillReminder.dueCount("[\"2026-09-01\",\"2026-09-21\",\"2026-10-01\"]", "2026-09-21"));
+        for (String tab : new String[]{"profile", "reports", "plan", "transactions", "budgets", "profile", "goals", "profile", "coach", "home"}) {
             assertEquals("true", js("document.querySelector('[data-tab=" + tab + "]').click(); !!document.querySelector('h1')"));
         }
         assertEquals("true", js("document.querySelector('[data-action=add][data-kind=incomes]').click(); !!document.querySelector('[role=dialog]')"));
