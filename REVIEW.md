@@ -22,4 +22,10 @@ The original source contained no APK or build workflow. The public HTML differed
 
 Forecast regression tests cover overdue/payday bills, late/missing income, deficits, reserves, gross/net treatment, arbitrary reduced hours, same-day ordering, 30-day bounds, settlement, cents, DST/calendar behavior, schema migration, and invalid inputs. The workflow additionally compiles and lints Android code and installs the APK on an Android 15 emulator to check rendering, navigation, saving, dialog back handling, and storage rehydration.
 
-Passing automation does not establish testing on a physical phone or every Android version. The preview uses debug signing and rules-based coaching. Production signing, connected AI, background notifications, recurring entries, and broader device/accessibility testing remain future work.
+Passing automation does not establish testing on a physical phone or every Android version. The preview uses debug signing and rules-based coaching. Production signing, connected AI, bank sync, and broader device/accessibility testing remain future work.
+
+## 1.3 feature verification
+
+Local checks cover transfers and reversal, card debt, account reconciliation, CSV quoting and duplicate detection, transfer-safe reports, savings history, legacy migration, and existing forecast rules (28 tests). Browser form checks exercise account creation, transfers, reports, contributions, CSV preview/import, budgets, recurring settlement, and edits/deletions. Android CI compiles, lints, and runs the installed WebView smoke test, bridge availability, reminder due-date counting, and persistence.
+
+Daily alarms are inexact; delivery timing and file-provider interactions still require physical-device testing. Preview signing remains per-build: keep a full JSON backup before uninstalling. The previous release remains available for rollback; retain that backup before restoring an older build because the older schema does not preserve new account/history fields.
