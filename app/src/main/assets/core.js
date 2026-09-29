@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 4, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false };
+    return { version: 5, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], forecastSettings: forecastOptions(), hiddenCards: [] };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -63,6 +63,12 @@
     if(new Set(result.accounts.map(a=>a.id)).size!==result.accounts.length || new Set(result.accounts.map(a=>a.label.toLowerCase())).size!==result.accounts.length)throw Error('Account identifiers and names must be unique.');
     result.transactions.forEach(t=>{if(!t.accountId)t.accountId=result.accounts[0].id;accountById(result,t.accountId);if(t.type==='transfer'){accountById(result,t.toAccountId);if(t.accountId===t.toAccountId)throw Error('Invalid transfer accounts.');}});
     result.bills.concat(result.incomes).forEach(x=>accountById(result,x.accountId));syncBalance(result);
+    result.holdings=list(raw.holdings).map((h,i)=>holding({...h,id:'holding-'+i}));portfolio(result);
+    result.balanceHistory=list(raw.balanceHistory).map(h=>{if(!validDate(h.date)||h.date>localDate())throw Error('Invalid balance history date.');return {date:h.date,value:number(h.value,-MAX),investments:number(h.investments||0)};}).sort((a,b)=>a.date.localeCompare(b.date));
+    if(new Set(result.balanceHistory.map(h=>h.date)).size!==result.balanceHistory.length)throw Error('Duplicate balance history dates.');
+    result.lifeEvents=list(raw.lifeEvents).map((e,i)=>lifeEvent({...e,id:'event-'+i}));
+    result.forecastSettings=forecastOptions(raw.forecastSettings);
+    result.hiddenCards=list(raw.hiddenCards).filter(x=>['setup','budget','spending','transactions','worth','goals','recurring','investments','advice'].includes(x));
     return result;
   }
   function demo(today = localDate()) {
@@ -182,13 +188,13 @@
     return state;
   }
   function budget(x) {
-    if (!x || !['fixed','flexible','occasional'].includes(x.bucket) || !validDate(x.start + '-01')) throw Error('Choose a valid budget bucket and start month.');
+    if (!x || !['income','fixed','flexible','occasional'].includes(x.bucket) || !validDate(x.start + '-01')) throw Error('Choose a valid budget bucket and start month.');
     return {id:x.id, category:label(x.category), amount:number(x.amount), bucket:x.bucket, start:x.start, rollover:x.rollover === true};
   }
   function budgetSummary(state, month = localDate().slice(0,7)) {
     if (!validDate(month + '-01')) throw Error('Choose a valid month.');
     const expenses = (state.transactions || []).filter(t => t.type === 'expense');
-    const rows = (state.budgets || []).filter(b => b.start <= month).map(b => {
+    const rows = (state.budgets || []).filter(b => b.start <= month && b.bucket !== 'income').map(b => {
       const matches = expenses.filter(t => t.category.toLowerCase() === b.category.toLowerCase());
       const spent = matches.filter(t => t.date.slice(0,7) === month).reduce((a,t) => a+cents(t.amount),0);
       const months = (Number(month.slice(0,4))-Number(b.start.slice(0,4)))*12 + Number(month.slice(5))-Number(b.start.slice(5));
@@ -314,7 +320,63 @@
     return rows.map(r=>r.map(quote).join(',')).join('\r\n');
   }
 
-  const api = { number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV };
+  function holding(x) {
+    const quantity=Number(x.quantity);
+    if(!Number.isFinite(quantity)||quantity<0.000001||quantity>1000000)throw Error('Enter a quantity above zero, up to 1,000,000.');
+    if(!['stock','bond','fund','crypto','other'].includes(x.assetClass))throw Error('Choose an asset class.');
+    const price=number(x.price),cost=number(x.cost);
+    number(quantity*price);number(quantity*cost);
+    return {id:x.id,label:label(x.label),symbol:label(x.symbol).toUpperCase(),assetClass:x.assetClass,quantity:Math.round(quantity*1000000)/1000000,price,cost,updated:validDate(x.updated)?x.updated:localDate()};
+  }
+  function portfolio(state) {
+    const rows=(state.holdings||[]).map(h=>({...h,value:number(h.quantity*h.price),basis:number(h.quantity*h.cost)}));
+    const value=number(dollars(rows.reduce((s,h)=>s+cents(h.value),0))),basis=number(dollars(rows.reduce((s,h)=>s+cents(h.basis),0)));
+    return {value,basis,gain:dollars(cents(value)-cents(basis)),rows:rows.map(h=>({...h,gain:dollars(cents(h.value)-cents(h.basis)),weight:value?h.value/value*100:0}))};
+  }
+  function saveHolding(state,input) {
+    const h=holding(input),next=[...(state.holdings||[])],i=next.findIndex(x=>x.id===h.id);if(i<0)next.push(h);else next[i]=h;
+    portfolio({...state,holdings:next});state.holdings=next;
+  }
+  function netWorth(state) {return number(dollars(cents(state.profile.balance)+cents(portfolio(state).value)),-MAX);}
+  function snapshot(state,date=localDate()) {
+    if(!validDate(date))throw Error('Invalid snapshot date.');
+    const entry={date,value:netWorth(state),investments:portfolio(state).value};
+    const history=state.balanceHistory||[],last=history[history.length-1];
+    if(last && last.date!==date && last.value===entry.value && last.investments===entry.investments)return;
+    state.balanceHistory=history.filter(x=>x.date!==date).concat(entry).sort((a,b)=>a.date.localeCompare(b.date)).slice(-10000);
+  }
+  function cashFlow(state,start,end,accountId='all',groupBy='category') {
+    if(!validDate(start)||!validDate(end)||end<start)throw Error('Choose a valid date range.');
+    if(!['category','merchant'].includes(groupBy))throw Error('Choose a valid grouping.');
+    const rows=state.transactions.filter(t=>t.type!=='transfer'&&t.date>=start&&t.date<=end&&(accountId==='all'||t.accountId===accountId));
+    const groups=type=>{const m=new Map();rows.filter(t=>t.type===type).forEach(t=>{const name=groupBy==='merchant'?t.label:t.category,key=name.toLowerCase(),g=m.get(key)||{label:name,amount:0};g.amount+=cents(t.amount);m.set(key,g);});return [...m.values()].map(g=>({...g,amount:dollars(g.amount)})).sort((a,b)=>b.amount-a.amount);};
+    const incomes=groups('income'),expenses=groups('expense'),total=items=>dollars(items.reduce((s,x)=>s+cents(x.amount),0)),income=total(incomes),expense=total(expenses),net=dollars(cents(income)-cents(expense));
+    return {rows,incomes,expenses,income,expense,net,rate:income?net/income*100:null};
+  }
+  function forecastOptions(x={}) {
+    const years=Number(x.years===undefined?10:x.years);
+    if(!Number.isInteger(years)||years<1||years>40)throw Error('Choose 1–40 years.');
+    return {years,monthlyIncome:number(x.monthlyIncome||0),monthlyExpense:number(x.monthlyExpense||0),growth:number(x.growth||0,-20,20)};
+  }
+  function lifeEvent(x) {
+    if(!validDate(x.month+'-01')||!['once','monthly'].includes(x.repeat))throw Error('Choose a valid event month and frequency.');
+    const amount=number(x.amount,-MAX);if(!amount)throw Error('Enter a nonzero change.');
+    return {id:x.id,label:label(x.label),month:x.month,amount,repeat:x.repeat};
+  }
+  function projectWealth(state,options=state.forecastSettings,today=localDate()) {
+    const o=forecastOptions(options),start=netWorth(state),[year,month]=today.split('-').map(Number),rate=Math.pow(1+o.growth/100,1/12)-1;
+    let value=start,base=start;const rows=[{month:today.slice(0,7),value:base,baseline:base}];
+    for(let i=1;i<=o.years*12;i++) {
+      const m=new Date(Date.UTC(year,month-1+i,1)).toISOString().slice(0,7);
+      const change=dollars((state.lifeEvents||[]).filter(e=>e.month===m||(e.repeat==='monthly'&&e.month<m)).reduce((s,e)=>s+cents(e.amount),0));
+      base=number(base+Math.max(0,base)*rate+o.monthlyIncome-o.monthlyExpense,-MAX);
+      value=number(value+Math.max(0,value)*rate+o.monthlyIncome-o.monthlyExpense+change,-MAX);
+      rows.push({month:m,value,baseline:base});
+    }
+    return rows;
+  }
+
+  const api = { number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
