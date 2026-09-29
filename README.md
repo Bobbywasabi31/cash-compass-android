@@ -4,9 +4,15 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.3.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.4.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.4
+
+A responsive workspace inspired by the supplied desktop references: customizable dashboard, grouped accounts and recorded net-worth history, transaction filters and bulk categories, cash-flow diagrams and period reports, income/expense budgets, recurring list/calendar, savings/debt tabs, manual investment holdings, and editable long-term scenarios. Phone layouts use a navigation drawer and bottom tabs; larger windows use a sidebar.
+
+Holdings use entered prices and are separate from cash. History starts with saved observations; it is not backfilled. Forecast growth is a user assumption, not a market prediction. Screenshot balances and personal records are not bundled with the app.
 
 ## What works
 
