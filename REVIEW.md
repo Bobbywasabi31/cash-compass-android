@@ -29,3 +29,8 @@ Passing automation does not establish testing on a physical phone or every Andro
 Local checks cover transfers and reversal, card debt, account reconciliation, CSV quoting and duplicate detection, transfer-safe reports, savings history, legacy migration, and existing forecast rules (28 tests). Browser form checks exercise account creation, transfers, reports, contributions, CSV preview/import, budgets, recurring settlement, and edits/deletions. Android CI compiles, lints, and runs the installed WebView smoke test, bridge availability, reminder due-date counting, and persistence.
 
 Daily alarms are inexact; delivery timing and file-provider interactions still require physical-device testing. Preview signing remains per-build: keep a full JSON backup before uninstalling. The previous release remains available for rollback; retain that backup before restoring an older build because the older schema does not preserve new account/history fields.
+
+## Version 1.4 workspace
+
+The screenshot-guided redesign adds dashboard preferences, account history, filtered cash-flow reports, manual holdings, and explicit long-term scenarios. Local verification: 38 calculation tests and both UI regression scripts pass. Android compile, lint, instrumentation, and APK signature checks run in the release workflow before publication. Investment values never increase spendable cash; transfers remain excluded from spending. No personal screenshot data is bundled. Historical values are recorded only from saved observations.
+
