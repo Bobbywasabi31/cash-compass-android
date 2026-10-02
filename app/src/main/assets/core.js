@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 5, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], forecastSettings: forecastOptions(), hiddenCards: [] };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], forecastSettings: forecastOptions(), hiddenCards: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -69,6 +69,7 @@
     result.lifeEvents=list(raw.lifeEvents).map((e,i)=>lifeEvent({...e,id:'event-'+i}));
     result.forecastSettings=forecastOptions(raw.forecastSettings);
     result.hiddenCards=list(raw.hiddenCards).filter(x=>['setup','budget','spending','transactions','worth','goals','recurring','investments','advice'].includes(x));
+    result.wallet=walletData(raw.wallet);
     return result;
   }
   function demo(today = localDate()) {
@@ -158,12 +159,14 @@
     if (delta !== 0 && cents(delta) !== cents(x.type === 'income' ? amount : -amount)) throw Error('Invalid cash adjustment.');
     const taxDelta = number(x.taxDelta || 0);
     if (taxDelta > amount || (taxDelta && (x.type !== 'income' || !delta))) throw Error('Invalid tax reserve adjustment.');
-    return {id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta};
+    const walletId=/^[a-f0-9]{64}$/.test(x.walletId||'')?x.walletId:'',walletRevision=/^[a-f0-9]{64}$/.test(x.walletRevision||'')?x.walletRevision:'';
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta};
   }
   function saveTransaction(state, input) {
     const t = transaction(input);
     const old = state.transactions.find(x => x.id === t.id);
     t.accountId=accountById(state,t.accountId).id;
+    if(old && old.walletId){t.walletId=old.walletId;t.walletRevision=t.walletRevision||old.walletRevision;}
     applyLedger(state,old,t);
     if (old) state.transactions[state.transactions.indexOf(old)] = t; else state.transactions.push(t);
     return state;
@@ -376,7 +379,73 @@
     return rows;
   }
 
-  const api = { number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, forecastOptions, lifeEvent, projectWealth };
+  function walletData(raw={}) {
+    if(!raw || typeof raw!=='object')throw Error('Invalid Wallet settings.');
+    const clean=x=>{if(!x||!/^[a-f0-9]{64}$/.test(x.id)||!/^[a-f0-9]{64}$/.test(x.revision)||!Number.isFinite(x.postedAt)||x.postedAt<=0)throw Error('Invalid Wallet notification.');return {id:x.id,revision:x.revision,postedAt:x.postedAt,title:String(x.title||'').slice(0,2000),text:String(x.text||'').slice(0,2000),reason:String(x.reason||'').slice(0,200)};};
+    const inbox=list(raw.inbox).map(clean);if(inbox.length>200)throw Error('Wallet review inbox is full.');
+    const receipts=list(raw.receipts).map(x=>{if(!x||!/^[a-f0-9]{64}$/.test(x.id)||!/^[a-f0-9]{64}$/.test(x.revision))throw Error('Invalid Wallet receipt.');return {id:x.id,revision:x.revision};});
+    return {accountId:typeof raw.accountId==='string'?raw.accountId:'',adjust:raw.adjust!==false,auto:raw.auto!==false,inbox,receipts};
+  }
+  function parseWallet(item) {
+    const title=String(item.title||'').trim(),body=String(item.text||'').trim(),text=[title,body].filter(Boolean).join('\n');
+    const date=localDate(new Date(item.postedAt));
+    const result={date,label:'',amount:null,type:'expense',reason:'',safe:false,ignore:false};
+    if(!text || (!/[\$€£¥₹]|\b(?:USD|EUR|GBP|CAD|AUD|paid|payment|purchase|transaction|charged|spent|refund|declined)\b/i.test(text)))return {...result,ignore:true};
+    if(/[€£¥₹]|\b(?:EUR|GBP|CAD|AUD|NZD|SGD|HKD|INR|JPY|CNY|CHF|MXN|BRL|KRW)\b|(?:CA?|AU?|NZ|SG|HK)\$/i.test(text))return {...result,reason:'Currency is not clearly USD. Enter the USD amount yourself.'};
+    const hits=[...text.matchAll(/(?:US\$|USD\s*\$?|\$)\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\s*USD\b/gi)];
+    const amounts=hits.map(m=>{const s=(m[1]||m[2]).replace(/[.,]$/,'');return /^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(s)?Number(s.replace(/,/g,'')):NaN;});
+    const unique=[...new Set(amounts)];
+    if(unique.length!==1||!Number.isFinite(unique[0])||unique[0]<=0||unique[0]>1000000000)return {...result,reason:'Could not identify one positive USD purchase amount.'};
+    result.amount=number(unique[0]);
+    if(/\b(refund|refunded|reversed|reversal|declined|failed|cancelled|canceled|unsuccessful|pending|request|verification|verify|cashback|reward|offer|discount|save up to)\b/i.test(text))return {...result,type:/\brefund(?:ed)?\b/i.test(text)?'income':'expense',reason:'This may be a refund, pending payment, failed purchase, or non-purchase notice.'};
+    const amountPattern='(?:US\\$|USD\\s*\\$?|\\$)\\s*[0-9][0-9.,]*(?:\\s*USD)?';
+    const explicit=new RegExp('(?:you\\s+)?(?:paid|spent|purchase(?:d)?(?:\\s+of)?|payment(?:\\s+of)?)?\\s*'+amountPattern+'\\s+(?:at|to)\\s+([^\\n]+)','i').exec(text);
+    if(explicit)result.label=explicit[1].replace(/\s+(?:with|using|on)\s+(?:your\s+)?(?:Visa|Mastercard|Amex|American Express|Discover|card)\b.*$/i,'').trim().replace(/[.!]$/,'');
+    // A merchant title plus a currency-led card payment body is another common Wallet layout.
+    else if(title && !/[\d$€£¥₹]|\b(?:google|wallet|pay|payment|purchase|transaction|notification|card)\b/i.test(title)
+      && new RegExp('^(?:you\\s+(?:paid|spent)\\s+)?'+amountPattern+'(?:\\s|$)','i').test(body)
+      && /\b(?:paid|spent|with|using|Visa|Mastercard|Amex|Discover)\b/i.test(body))result.label=title;
+    if(!result.label||result.label.length>80)return {...result,label:'',reason:'Confirm the merchant from the notification.'};
+    if(!validDate(date)||date>localDate())return {...result,reason:'Confirm the transaction date.'};
+    return {...result,safe:true};
+  }
+  function receiveWallet(state,items,allowAuto=true) {
+    state.wallet=walletData(state.wallet);const w=state.wallet,ack=[];let added=0,reviewed=0;
+    for(const raw of items.slice(0,200)) {
+      const item=walletData({inbox:[raw]}).inbox[0];
+      if(w.receipts.some(r=>r.id===item.id&&r.revision===item.revision)){ack.push(item);continue;}
+      if(w.inbox.some(r=>r.id===item.id&&r.revision===item.revision)){ack.push(item);continue;}
+      const existing=state.transactions.find(t=>t.walletId===item.id),seen=w.receipts.some(r=>r.id===item.id);
+      const parsed=parseWallet(item);
+      if(parsed.ignore&&!existing&&!seen) {if(w.receipts.length>=10000)break;w.receipts.push({id:item.id,revision:item.revision});ack.push(item);continue;}
+      let reason=parsed.reason;
+      const matching=state.transactions.some(t=>t.type===parsed.type&&t.date===parsed.date&&cents(t.amount)===cents(parsed.amount)&&t.label.toLowerCase()===parsed.label.toLowerCase());
+      if(existing||seen)reason='An earlier version of this notification was already handled. Confirm any change.';
+      else if(matching)reason='A matching merchant, amount, and date is already in transactions. Check for a duplicate.';
+      else if(!state.accounts.some(a=>a.id===w.accountId))reason='Choose an account for this purchase.';
+      else if(Date.now()-item.postedAt>7*86400000)reason='This notification is over a week old. Check its date and balance adjustment.';
+      else if(!allowAuto||!w.auto)reason=reason||'Automatic insertion is off. Review this purchase.';
+      if(w.receipts.length>=10000)break;
+      if(parsed.safe&&!reason&&!state.demo) {
+        try {saveTransaction(state,{id:'wallet-'+item.id,walletId:item.id,walletRevision:item.revision,label:parsed.label,amount:parsed.amount,type:'expense',date:parsed.date,accountId:w.accountId,category:'Other',adjust:w.adjust});w.receipts.push({id:item.id,revision:item.revision});added++;}
+        catch(e){reason='Could not apply this purchase: '+e.message;}
+      }
+      if(reason||!parsed.safe||state.demo) {
+        if(w.inbox.length>=200&&!w.inbox.some(x=>x.id===item.id))break;
+        w.inbox=w.inbox.filter(x=>x.id!==item.id);w.inbox.push({...item,reason:reason||'Review purchase details.'});reviewed++;
+      }
+      ack.push(item);
+    }
+    return {ack:ack.map(x=>({id:x.id,revision:x.revision})),added,reviewed};
+  }
+  function resolveWallet(state,id,input) {
+    const w=state.wallet,item=w.inbox.find(x=>x.id===id);if(!item)throw Error('This notification is no longer pending.');
+    if(w.receipts.length>=10000)throw Error('Wallet receipt history is full. Export your backup before clearing your plan.');
+    if(input){const old=state.transactions.find(t=>t.walletId===id);if(!validDate(input.date)||input.date>localDate())throw Error('Choose a valid transaction date.');if(!['expense','income'].includes(input.type))throw Error('Choose purchase or refund.');saveTransaction(state,{...input,id:old?old.id:'wallet-'+id,walletId:id,walletRevision:item.revision});}
+    w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
+  }
+
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
