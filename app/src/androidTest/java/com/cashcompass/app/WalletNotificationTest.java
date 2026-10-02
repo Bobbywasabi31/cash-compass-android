@@ -18,7 +18,7 @@ public class WalletNotificationTest {
     private StatusBarNotification event(String source, String text, long when, boolean summary) {
         Notification n = new Notification.Builder(c, "wallet-test").setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Google Wallet").setContentText(text).setWhen(when).setGroupSummary(summary).build();
-        return new StatusBarNotification(source, source, 7, "purchase", 1000, 0, n, android.os.Process.myUserHandle(), null, when + 1);
+        return new StatusBarNotification(source, source, 7, "purchase", 1000, 0, 0, n, android.os.Process.myUserHandle(), when + 1);
     }
     private JSONArray queue() throws Exception { return new JSONObject(WalletNotifications.status(c, true)).getJSONArray("queue"); }
     @Test public void filtersSourcesAndPersistsIdempotentQueue() throws Exception {

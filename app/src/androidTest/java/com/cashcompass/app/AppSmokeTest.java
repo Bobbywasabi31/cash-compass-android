@@ -49,8 +49,8 @@ public class AppSmokeTest {
             .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Google Wallet")
             .setContentText("You paid $12.34 at Example Market").setWhen(purchaseTime).build();
         WalletNotifications.capture(activity.getActivity(), new android.service.notification.StatusBarNotification(
-            "com.google.android.apps.walletnfcrel", "com.google.android.apps.walletnfcrel", 42, "smoke", 1000, 0,
-            purchase, android.os.Process.myUserHandle(), null, purchaseTime + 1));
+            "com.google.android.apps.walletnfcrel", "com.google.android.apps.walletnfcrel", 42, "smoke", 1000, 0, 0,
+            purchase, android.os.Process.myUserHandle(), purchaseTime + 1));
         // Synthetic capture exercises the native queue and review bridge without granting real notification access.
         assertEquals("true", js("document.querySelector('[data-action=wallet-refresh]').click(); JSON.parse(localStorage.getItem('cash-compass-v2')).wallet.inbox.length===1 && JSON.parse(NativeBridge.walletStatus()).queue.length===0"));
         assertEquals("true", js("document.querySelector('[data-wallet-review]').click(); document.querySelector('#walletReviewForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).transactions.some(t=>t.walletId && t.label==='Example Market') && JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===208.16"));
