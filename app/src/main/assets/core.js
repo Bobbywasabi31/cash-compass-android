@@ -402,7 +402,7 @@
     const explicit=new RegExp('(?:you\\s+)?(?:paid|spent|purchase(?:d)?(?:\\s+of)?|payment(?:\\s+of)?)?\\s*'+amountPattern+'\\s+(?:at|to)\\s+([^\\n]+)','i').exec(text);
     if(explicit)result.label=explicit[1].replace(/\s+(?:with|using|on)\s+(?:your\s+)?(?:Visa|Mastercard|Amex|American Express|Discover|card)\b.*$/i,'').trim().replace(/[.!]$/,'');
     // A merchant title plus a currency-led card payment body is another common Wallet layout.
-    else if(title && !/[\d$€£¥₹]|\b(?:google|wallet|pay|payment|purchase|transaction|notification|card)\b/i.test(title)
+    else if(title && /[a-z]/i.test(title) && !/[$€£¥₹]|\b(?:google|wallet|pay|payment|purchase|transaction|notification|card)\b/i.test(title)
       && new RegExp('^(?:you\\s+(?:paid|spent)\\s+)?'+amountPattern+'(?:\\s|$)','i').test(body)
       && /\b(?:paid|spent|with|using|Visa|Mastercard|Amex|Discover)\b/i.test(body))result.label=title;
     if(!result.label||result.label.length>80)return {...result,label:'',reason:'Confirm the merchant from the notification.'};
