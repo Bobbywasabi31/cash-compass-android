@@ -46,14 +46,14 @@ public class AppSmokeTest {
         assertEquals("true", js("document.querySelector('[data-tab=profile]').click(); document.querySelector('[data-tab=wallet]').click(); document.querySelector('#walletSettingsForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(NativeBridge.walletStatus()).enabled"));
         long purchaseTime = System.currentTimeMillis() + 100;
         android.app.Notification purchase = new android.app.Notification.Builder(activity.getActivity(), "wallet-smoke")
-            .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Google Wallet")
-            .setContentText("You paid $12.34 at Example Market").setWhen(purchaseTime).build();
+            .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("123 CORNER MARKET")
+            .setContentText("$12.34 with Example Consumer\nDebit Card ••0000").setWhen(purchaseTime).build();
         WalletNotifications.capture(activity.getActivity(), new android.service.notification.StatusBarNotification(
             "com.google.android.apps.walletnfcrel", "com.google.android.apps.walletnfcrel", 42, "smoke", 1000, 0, 0,
             purchase, android.os.Process.myUserHandle(), purchaseTime + 1));
         // Synthetic capture exercises the native queue and review bridge without granting real notification access.
         assertEquals("true", js("document.querySelector('[data-action=wallet-refresh]').click(); JSON.parse(localStorage.getItem('cash-compass-v2')).wallet.inbox.length===1 && JSON.parse(NativeBridge.walletStatus()).queue.length===0"));
-        assertEquals("true", js("document.querySelector('[data-wallet-review]').click(); document.querySelector('#walletReviewForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).transactions.some(t=>t.walletId && t.label==='Example Market') && JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===208.16"));
+        assertEquals("true", js("document.querySelector('[data-wallet-review]').click(); document.querySelector('#walletReviewForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).transactions.some(t=>t.walletId && t.label==='123 CORNER MARKET') && JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===208.16"));
         assertEquals("true", js("document.querySelector('[data-action=wallet-pause]').click(); !JSON.parse(NativeBridge.walletStatus()).enabled"));
         // Reload the actual bundled HTTPS origin and check persisted state rehydrates.
         activity.getActivity().runOnUiThread(() -> activity.getActivity().getAppWebView().reload());
