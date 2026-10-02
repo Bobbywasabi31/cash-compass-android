@@ -4,9 +4,17 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.6.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.6.1-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.6.1: Complete sample plan
+
+Choose **You → Load sample plan** and confirm replacement to explore Jordan's fictional finances. Back up any plan you want to keep first. The sample includes four account types, twelve months of transaction and net-worth examples, transfers and card payments, income and expense budgets with overspending and rollover, recurring paychecks and bills, an overdue bill, three goals with contributions and withdrawals, three manually priced holdings, and long-term scenarios with life events.
+
+Every main section is populated, including Cash Flow and its Sankey diagram. Dates are based on when the sample is loaded; completed example transactions never fall after that date. The current month's dates are capped at today so it is useful even at the start of a month. History is fictional and already included in the sample's account balances. Investment names, symbols, prices, and growth assumptions are examples.
+
+The Wallet page includes two clearly labeled fictional review notices and an example recorded purchase. Capture stays paused while using the sample, and phone reminders start off. Try editing, reviewing, exporting, backing up, and restoring the sample. **Start my own plan** clears the examples after confirmation; loading an app update does not replace an existing plan automatically.
 
 ## New in 1.6: Sankey cash-flow diagram
 

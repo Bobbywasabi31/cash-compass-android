@@ -64,5 +64,20 @@ public class AppSmokeTest {
         }
         assertTrue("Saved profile did not survive reload", restored);
         assertEquals("true", js("document.querySelector('[data-tab=transactions]').click(); document.body.textContent.includes('Groceries test') && document.body.textContent.includes('Monthly phone')"));
+        // The complete sample is opt-in and populates the installed app's main views.
+        assertEquals("true", js("document.querySelector('[data-tab=profile]').click(); document.querySelector('[data-action=demo]').click();" +
+            "!!document.querySelector('[role=dialog]') && !JSON.parse(localStorage.getItem('cash-compass-v2')).demo"));
+        assertEquals("true", js("document.querySelector('[data-confirm=yes]').click();" +
+            "JSON.parse(localStorage.getItem('cash-compass-v2')).demo && !JSON.parse(NativeBridge.walletStatus()).enabled && !state.reminders && state.profile.balance===1500"));
+        for (String section : new String[]{"home", "accounts", "transactions", "budgets", "plan", "goals", "investments", "forecasting", "cashflow", "reports", "coach", "profile"}) {
+            assertEquals("true", js("document.querySelector('[data-tab=" + section + "]').click(); !!document.querySelector('h1') && document.body.textContent.includes('Sample plan')"));
+        }
+        assertEquals("true", js("document.querySelector('[data-tab=cashflow]').click(); !!document.querySelector('.sankey .flow-chart')"));
+        assertEquals("true", js("document.querySelector('[data-tab=goals]').click(); document.querySelector('[data-goal-view=debt]').click(); document.body.textContent.includes('Example Credit Card')"));
+        assertEquals("true", js("document.querySelector('[data-tab=profile]').click(); document.querySelector('[data-tab=wallet]').click();" +
+            "document.querySelectorAll('[data-wallet-review]').length===2 && !document.querySelector('#walletSettingsForm')"));
+        assertEquals("true", js("document.querySelector('[data-wallet-review]').click(); document.querySelector('#walletReviewForm [name=category]').value='Dining';" +
+            "document.querySelector('#walletReviewForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); state.wallet.inbox.length===1 && state.demo && !JSON.parse(NativeBridge.walletStatus()).enabled"));
+        assertEquals("true", js("CashCore.normalize(JSON.parse(localStorage.getItem('cash-compass-v2'))).holdings.length===3 && state.balanceHistory.length===12 && state.lifeEvents.length===3"));
     }
 }

@@ -51,11 +51,11 @@ test('budget rollover includes underspending and overspending, case insensitive 
  assert.equal(C.budgetSummary(s,'2026-07').rows.length,0);
 });
 test('legacy migration and new backup round trips preserve balance, schedules, ledger and budgets',()=>{
- const s=C.demo('2026-09-18');s.incomes[0].repeat='monthly';s.incomes[0].anchorDay=25;
+ const s=C.demo('2026-09-18'),historyCount=s.transactions.length;s.incomes[0].repeat='monthly';s.incomes[0].anchorDay=25;
  C.saveTransaction(s,{id:'a',label:'Lunch',amount:10,type:'expense',date:'2026-09-18'});
  s.budgets=[C.budget({id:'b',category:'Other',amount:100,bucket:'flexible',start:'2026-09',rollover:true})];
- const restored=C.normalize(JSON.parse(JSON.stringify(s)));assert.equal(restored.profile.balance,1490);assert.equal(restored.transactions.length,1);assert.equal(restored.incomes[0].repeat,'monthly');assert.equal(restored.budgets[0].rollover,true);
- C.removeTransaction(restored,restored.transactions[0].id);assert.equal(restored.profile.balance,1500);
+ const restored=C.normalize(JSON.parse(JSON.stringify(s)));assert.equal(restored.profile.balance,1490);assert.equal(restored.transactions.length,historyCount+1);assert.equal(restored.incomes[0].repeat,'monthly');assert.equal(restored.budgets[0].rollover,true);
+ C.removeTransaction(restored,restored.transactions.find(t=>t.label==='Lunch').id);assert.equal(restored.profile.balance,1500);
  delete s.transactions;delete s.budgets;assert.deepEqual(C.normalize(s).transactions,[]);
 });
 test('invalid backups and tax reversals fail without partially modifying cash',()=>{

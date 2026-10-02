@@ -73,11 +73,98 @@
     return result;
   }
   function demo(today = localDate()) {
+    if (!validDate(today)) throw Error('Enter a valid sample-plan date.');
     const s = blank(); s.demo = true;
-    s.profile = { name: 'Jordan', balance: 1500, hourlyRate: 28, taxRate: 18, buffer: 100, taxHeld: 0 };
-    s.incomes = [{ id: 'pay', label: 'Shift pay (after payroll tax)', amount: 1176, date: addDays(today, 7), gross: false }];
-    s.bills = [{ id: 'phone', label: 'Phone', amount: 58, date: addDays(today, 2) }, { id: 'rent', label: 'Rent', amount: 1150, date: addDays(today, 11) }];
-    s.goals = [{ id: 'cushion', label: 'Emergency cushion', target: 1200, saved: 435, monthly: 60 }];
+    const [year,month] = today.split('-').map(Number);
+    const monthAt = offset => new Date(Date.UTC(year,month-1+offset,1)).toISOString().slice(0,7);
+    const historyDate = (offset,day) => {
+      const last = new Date(Date.UTC(year,month+offset,0)).getUTCDate();
+      const date = monthAt(offset)+'-'+String(Math.min(day,last)).padStart(2,'0');
+      return date>today ? today : date;
+    };
+    s.profile = { name:'Jordan', balance:1500, hourlyRate:28, taxRate:18, buffer:100, taxHeld:60 };
+    s.accounts = [
+      {id:'checking',label:'Example Checking',type:'checking',balance:1850},
+      {id:'savings',label:'Example Savings',type:'savings',balance:950},
+      {id:'cash',label:'Cash wallet',type:'cash',balance:100},
+      {id:'card',label:'Example Credit Card',type:'credit',balance:-1387.66}
+    ];
+    syncBalance(s);
+    s.incomes = [
+      {id:'pay',label:'Shift pay (after payroll tax)',amount:1176,date:addDays(today,7),gross:false,repeat:'biweekly',accountId:'checking',category:'Paycheck'},
+      {id:'side-pay',label:'Weekend project (gross)',amount:180,date:addDays(today,3),gross:true,repeat:'monthly',accountId:'checking',category:'Side work'},
+      {id:'extra-shift',label:'Extra shift payment',amount:140,date:addDays(today,12),gross:false,repeat:'none',accountId:'checking',category:'Paycheck'}
+    ];
+    s.bills = [
+      {id:'phone',label:'Phone',amount:58,date:addDays(today,2),repeat:'monthly',accountId:'checking',category:'Phone'},
+      {id:'rent',label:'Shared housing',amount:950,date:monthAt(1)+'-01',repeat:'monthly',anchorDay:1,accountId:'checking',category:'Housing'},
+      {id:'utility',label:'Last utility bill — overdue example',amount:72,date:addDays(today,-2),repeat:'monthly',accountId:'checking',category:'Utilities'},
+      {id:'subscription',label:'Example streaming subscription',amount:14.99,date:addDays(today,9),repeat:'monthly',accountId:'card',category:'Subscriptions'},
+      {id:'transit',label:'Weekly transit pass',amount:18,date:addDays(today,4),repeat:'weekly',accountId:'cash',category:'Transportation'},
+      {id:'insurance',label:'Annual insurance renewal',amount:240,date:addDays(today,22),repeat:'yearly',accountId:'checking',category:'Insurance'}
+    ];
+    const contribution = (id,days,amount,note) => ({id,date:addDays(today,-days),amount,note});
+    s.goals = [
+      {id:'cushion',label:'Emergency cushion',target:1200,saved:435,monthly:60,deadline:addDays(today,180),contributions:[contribution('c1',100,200,'Starting cushion'),contribution('c2',70,150,'Paycheck contribution'),contribution('c3',35,100,'Extra shift'),contribution('c4',14,-15,'Unexpected expense')]},
+      {id:'car',label:'Car maintenance',target:600,saved:180,monthly:40,deadline:addDays(today,90),contributions:[contribution('a1',80,120,'Maintenance set-aside'),contribution('a2',45,80,'Paycheck contribution'),contribution('a3',20,-20,'Small repair')]},
+      {id:'trip',label:'Weekend trip',target:400,saved:90,monthly:25,deadline:addDays(today,240),contributions:[contribution('t1',60,50,'Trip fund'),contribution('t2',25,40,'Paycheck contribution')]}
+    ];
+    let sequence=0;
+    const record = (offset,day,type,amount,category,label,accountId='checking',extra={}) => {
+      saveTransaction(s,{id:'sample-'+sequence++,date:historyDate(offset,day),type,amount,category,label,accountId,adjust:false,...extra});
+    };
+    // Fictional reconciled history is already included in the displayed balances.
+    // Cap this month's example dates at today so charts work even on the first day.
+    for(let age=11;age>=0;age--) {
+      const offset=-age,lean=age===4,pay=lean?650:1176+(age%3)*28;
+      record(offset,5,'income',age===0?1176:pay,'Paycheck','Example shift employer');
+      if(age>0)record(offset,19,'income',pay,'Paycheck','Example shift employer');
+      record(offset,8,'income',age===0?120:150+(age%2)*30,'Side work','Example weekend client');
+      record(offset,1,'expense',950,'Housing','Shared housing');
+      record(offset,3,'expense',82.35+(age%3)*4,'Groceries','Example Market');
+      record(offset,12,'expense',76.40,'Groceries','Example Market','card');
+      record(offset,24,'expense',age===0?54.25:91.25,'Groceries','Neighborhood Grocer','card');
+      record(offset,4,'expense',52.80,'Transportation','Example Fuel');
+      record(offset,18,'expense',age===0?18:49.60,'Transportation','Transit and fuel');
+      if(age>0)record(offset,10,'expense',58,'Phone','Example mobile service');
+      if(age>0)record(offset,16,'expense',72+(age%3)*5,'Utilities','Example utility');
+      record(offset,6,'expense',14.99,'Subscriptions','Example streaming service','card');
+      record(offset,14,'expense',32.50,'Dining','Example Cafe','card');
+      record(offset,23,'expense',18.75,'Dining','Neighborhood Lunch');
+      record(offset,20,'expense',25,'Entertainment','Example Cinema','card');
+      record(offset,25,'expense',6.25,'Other','Small household purchase','cash');
+      record(offset,7,'transfer',100,'Transfer','Checking to savings','checking',{toAccountId:'savings'});
+      record(offset,21,'transfer',145,'Transfer','Credit card payment','checking',{toAccountId:'card'});
+      if(lean)record(offset,20,'expense',1050,'Car repairs','Example Repair Shop','card');
+    }
+    // One editable purchase demonstrates reversible balance adjustments.
+    const receiptId='c'.repeat(64),revision='d'.repeat(64);
+    record(0,Number(today.slice(8)),'expense',12.34,'Groceries','Example Corner Market','card',{adjust:true,walletId:receiptId,walletRevision:revision});
+    const budgetStart=monthAt(-11);
+    s.budgets = [
+      ['Paycheck',2352,'income',false],['Side work',150,'income',false],
+      ['Housing',950,'fixed',false],['Phone',58,'fixed',false],['Utilities',90,'fixed',false],['Subscriptions',20,'fixed',false],
+      ['Groceries',240,'flexible',false],['Transportation',130,'flexible',false],['Dining',40,'flexible',false],['Entertainment',30,'flexible',false],
+      ['Car repairs',100,'occasional',true],['Gifts',25,'occasional',true]
+    ].map(([category,amount,bucket,rollover],i)=>budget({id:'sample-budget-'+i,category,amount,bucket,rollover,start:budgetStart}));
+    s.holdings = [
+      holding({id:'sample-fund',label:'Example diversified fund',symbol:'EXMF',quantity:8,price:120,cost:105,assetClass:'fund',updated:today}),
+      holding({id:'sample-bond',label:'Example bond holding',symbol:'EXBD',quantity:12,price:98,cost:100,assetClass:'bond',updated:today}),
+      holding({id:'sample-stock',label:'Example company shares',symbol:'EXST',quantity:10,price:22,cost:18,assetClass:'stock',updated:today})
+    ];
+    s.forecastSettings = forecastOptions({years:10,monthlyIncome:2502,monthlyExpense:1750,growth:4});
+    s.lifeEvents = [
+      lifeEvent({id:'sample-repair',label:'Planned major repair',month:monthAt(3),amount:-800,repeat:'once'}),
+      lifeEvent({id:'sample-hours',label:'Lower-hours season',month:monthAt(6),amount:-250,repeat:'monthly'}),
+      lifeEvent({id:'sample-extra',label:'New weekend client',month:monthAt(9),amount:175,repeat:'monthly'})
+    ];
+    for(let age=11;age>0;age--)s.balanceHistory.push({date:historyDate(-age,28),value:2400+(11-age)*125,investments:1750+(11-age)*45});
+    snapshot(s,today);
+    const postedAt=new Date(today+'T12:00:00').getTime();
+    s.wallet = walletData({accountId:'card',adjust:true,auto:false,receipts:[{id:receiptId,revision}],inbox:[
+      {id:'a'.repeat(64),revision:'b'.repeat(64),postedAt,title:'Example Cafe',text:'$21.80 with Example Bank\nDebit Card ••0000',reason:'Fictional sample purchase. Try reviewing its account and category.'},
+      {id:'e'.repeat(64),revision:'f'.repeat(64),postedAt:postedAt-60000,title:'Example Store',text:'Refund of $15.00 pending',reason:'Fictional pending-refund notice. Confirm the details or dismiss it.'}
+    ]});
     return s;
   }
   function netCents(item, profile) { return cents(item.amount) - (item.gross ? Math.round(cents(item.amount) * profile.taxRate / 100) : 0); }

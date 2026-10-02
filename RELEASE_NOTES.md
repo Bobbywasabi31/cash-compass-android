@@ -1,4 +1,11 @@
-# Cash Compass 1.6.0 preview
+# Cash Compass 1.6.1 preview
+
+- Expanded sample plan populates every main screen with fictional accounts, twelve months of ledger and net-worth history, budgets, recurring income/bills, goals, investments, and forecast scenarios.
+- Sample Wallet review notices demonstrate purchases and pending refunds while capture stays paused. Sample reminders start off.
+- Load from You → Load sample plan. Dates refresh when loaded, and existing plans are replaced only after confirmation.
+- Corrected the version displayed in You and the sidebar.
+
+### Sankey retained
 
 - Sankey cash-flow diagram in both Cash Flow and Reports, using the selected period, account, and category/merchant grouping.
 - Proportional bands for income, spending, and Saved; explicit funding gaps for overspending and clear empty states.
