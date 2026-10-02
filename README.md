@@ -16,6 +16,18 @@ Every main section is populated, including Cash Flow and its Sankey diagram. Dat
 
 The Wallet page includes two clearly labeled fictional review notices and an example recorded purchase. Capture stays paused while using the sample, and phone reminders start off. Try editing, reviewing, exporting, backing up, and restoring the sample. **Start my own plan** clears the examples after confirmation; loading an app update does not replace an existing plan automatically.
 
+## Screenshots
+
+Cash Compass 1.6.1 with Jordan's complete fictional sample loaded. These are browser captures of the interface bundled in the Android app, showing phone and wider layouts. Select an image for full size, or open the [full nine-screenshot gallery](docs/screenshots/README.md) for accounts, budgets, investments, and forecasting too.
+
+| Phone dashboard | Savings goals | Wallet purchase review |
+| --- | --- | --- |
+| <a href="docs/screenshots/dashboard-phone.png"><img src="docs/screenshots/dashboard-phone.png" width="240" alt="Phone dashboard with the fictional sample, five completed setup steps, and recorded spending"></a> | <a href="docs/screenshots/goals-phone.png"><img src="docs/screenshots/goals-phone.png" width="240" alt="Phone savings goals with emergency and car funds, progress, and contribution histories"></a> | <a href="docs/screenshots/wallet-review-phone.png"><img src="docs/screenshots/wallet-review-phone.png" width="240" alt="Review form for the fictional Example Cafe purchase with amount, category, and account fields"></a> |
+
+| Complete dashboard | Cash-flow Sankey |
+| --- | --- |
+| <a href="docs/screenshots/dashboard-desktop.png"><img src="docs/screenshots/dashboard-desktop.png" width="420" alt="Wide dashboard showing populated spending, budgets, transactions, net worth, recurring bills, goals, investments, and cash outlook"></a> | <a href="docs/screenshots/cash-flow-desktop.png"><img src="docs/screenshots/cash-flow-desktop.png" width="420" alt="September sample report showing income flowing into spending categories and 1049.11 dollars saved"></a> |
+
 ## New in 1.6: Sankey cash-flow diagram
 
 Open **Cash Flow** for a monthly, quarterly, or annual diagram, or **Reports → Cash Flow** for a custom date range. Account and category/merchant filters apply to the diagram and its exact-value tables.
