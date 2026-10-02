@@ -4,9 +4,19 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.4.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.5.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.5: Google Wallet purchase import
+
+Open **You → Google Wallet purchase import**, choose the account and balance handling, and save. Then open Android notification access and enable **Cash Compass · Wallet purchases**. Access is off by default and must be granted by you. Android may show a restricted-settings prompt for sideloaded previews; see [Android's explanation](https://support.google.com/android/answer/12623953).
+
+New Google Wallet notices are captured on-device while the app is closed and imported the next time it opens. Clear English USD purchases insert automatically; dollar signs mean USD. Review mode lets you approve every purchase instead. Choose review mode when using multiple cards. All automatic imports use the selected account and start in Other. Edit them normally afterward.
+
+Repeated notifications are deduplicated; updates and possible manual/CSV duplicates go to review. Failed payments, refunds, pending charges, unsupported currencies, and ambiguous text never insert automatically. Dismiss an already recorded notice or review its details. This is notification parsing, not a bank or Wallet API, and formats vary by phone. Only future notifications are captured; there is no historical Wallet import.
+
+The app does not have internet permission. Android grants broad notification access; the service discards other sources before retaining text. It accepts Google Wallet's package or Google Play services only with an explicit Google Wallet/Google Pay attribution. Pause stops capture; revoke access in Android to fully disconnect. See [privacy](PRIVACY.md) for retention and backup behavior.
 
 ## New in 1.4
 

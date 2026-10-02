@@ -1,4 +1,14 @@
-# Cash Compass 1.4.0 preview
+# Cash Compass 1.5.0 preview
+
+- Opt-in Google Wallet notification capture, processed entirely on-device.
+- Automatic insertion of clear English USD purchases into a chosen account when Cash Compass opens.
+- Review inbox for unclear details, refunds, failed/pending payments, changed alerts, and possible duplicates.
+- Repeated notifications do not create duplicate transactions; reviewed changes update the linked transaction with reversible balance adjustments.
+- Choose balance adjustment or history-only import; pause capture or revoke access in Android settings.
+- Enable from You → Google Wallet purchase import. Android notification access must be granted separately.
+- Notification formats vary; unknown formats need review. No bank connection, historical Wallet access, live currency conversion, or actual payment actions.
+
+### Workspace features retained
 
 - New customizable dashboard, light card layout, desktop sidebar, and phone navigation.
 - Grouped accounts, assets/liabilities summary, and recorded net-worth history.

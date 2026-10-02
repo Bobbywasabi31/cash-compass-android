@@ -34,3 +34,9 @@ Daily alarms are inexact; delivery timing and file-provider interactions still r
 
 The screenshot-guided redesign adds dashboard preferences, account history, filtered cash-flow reports, manual holdings, and explicit long-term scenarios. Local verification: 38 calculation tests and both UI regression scripts pass. Android compile, lint, instrumentation, and APK signature checks run in the release workflow before publication. Investment values never increase spendable cash; transfers remain excluded from spending. No personal screenshot data is bundled. Historical values are recorded only from saved observations.
 
+
+## Version 1.5 Wallet import
+
+The listener is protected by Android's BIND_NOTIFICATION_LISTENER_SERVICE permission, disabled in-app until opt-in, and source-filtered before content retention. A bounded private queue survives process restarts. Queue acknowledgments occur only after durable local plan writes and match notification revisions, preserving concurrent updates. Receipt IDs survive transaction edits, deletion, and backup normalization. Ambiguous currencies, failed/pending/refund text, unknown merchants, missing accounts, stale notices, and possible duplicates go to review. No network permission added.
+
+Validation: 50 core tests, existing UI regressions, and a Wallet UI test cover parsing, idempotency, revision review, balances, storage-failure retry, and pause. Android instrumentation covers source filtering, queue persistence, duplicate delivery, and concurrent revision acknowledgment; CI compile/lint/device checks gate publication. These use synthetic notifications; actual Google Wallet formatting on the user's phone remains to be confirmed.
