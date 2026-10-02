@@ -356,6 +356,29 @@
     const incomes=groups('income'),expenses=groups('expense'),total=items=>dollars(items.reduce((s,x)=>s+cents(x.amount),0)),income=total(incomes),expense=total(expenses),net=dollars(cents(income)-cents(expense));
     return {rows,incomes,expenses,income,expense,net,rate:income?net/income*100:null};
   }
+  // Read-only view model: both sides of the Sankey balance to the cent.
+  function cashFlowSankey(report) {
+    const sum = items => items.reduce((total, item) => total + item.cents, 0);
+    const entries = items => items.map(item => ({label:item.label,cents:cents(item.amount)})).filter(item => item.cents > 0);
+    const incomes = entries(report.incomes), expenses = entries(report.expenses);
+    const incomeCents = sum(incomes), expenseCents = sum(expenses);
+    const group = (items, total, limit, kind) => {
+      const visible = [], other = [];
+      // A named Other category shares one bucket with small/overflow groups.
+      [...items].sort((a,b) => b.cents-a.cents || a.label.localeCompare(b.label)).forEach(item => {
+        if (item.label.trim().toLowerCase() === 'other' || item.cents * 100 < total * 3 || visible.length >= limit) other.push(item);
+        else visible.push({label:item.label,cents:item.cents,kind,members:[item],grouped:false});
+      });
+      if (other.length) visible.push({label:'Other',cents:sum(other),kind,members:other,grouped:true});
+      return visible;
+    };
+    const incoming = group(incomes,incomeCents,5,'income');
+    const outgoing = group(expenses,expenseCents,6,'expense');
+    const savedCents = Math.max(0,incomeCents-expenseCents), gapCents = Math.max(0,expenseCents-incomeCents);
+    if (gapCents) incoming.push({label:'Funding gap',cents:gapCents,kind:'gap',members:[],grouped:false});
+    if (savedCents) outgoing.push({label:'Saved',cents:savedCents,kind:'saved',members:[],grouped:false});
+    return {incoming,outgoing,incomeCents,expenseCents,savedCents,gapCents,totalCents:Math.max(incomeCents,expenseCents)};
+  }
   function forecastOptions(x={}) {
     const years=Number(x.years===undefined?10:x.years);
     if(!Number.isInteger(years)||years<1||years>40)throw Error('Choose 1–40 years.');
@@ -447,7 +470,7 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, forecastOptions, lifeEvent, projectWealth };
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

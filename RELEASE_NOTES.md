@@ -1,4 +1,11 @@
-# Cash Compass 1.5.1 preview
+# Cash Compass 1.6.0 preview
+
+- Sankey cash-flow diagram in both Cash Flow and Reports, using the selected period, account, and category/merchant grouping.
+- Proportional bands for income, spending, and Saved; explicit funding gaps for overspending and clear empty states.
+- Small and overflow groups combine into Other, with expandable exact-value tables showing all included amounts.
+- Phone-friendly stacked tables, scrollable SVG, and text descriptions. Transfers remain excluded; no plan or balance changes.
+
+### Wallet import retained
 
 - Recognize merchant-title purchase notices with numeric merchant prefixes, slashes, and wrapped bank/card names.
 - Opt-in Google Wallet notification capture, processed entirely on-device.

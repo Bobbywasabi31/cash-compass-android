@@ -26,3 +26,35 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
 @media(max-width:760px){.app{margin:0;padding:0 14px calc(90px + env(safe-area-inset-bottom));border-radius:0;min-height:100vh;box-shadow:none}.sidebar{display:none;width:260px;padding-top:22px;background:#faf9f7}.sidebar.open{display:flex;z-index:9}.sidebar .side-brand .menu-button{margin-left:auto}.drawer-shade.open{display:block;position:fixed;inset:0;background:#25231e66;z-index:8}.menu-button{display:block;min-width:44px;color:var(--ink)}.workspace-top{justify-content:space-between;height:61px}.mobile-brand{font-size:15px!important}.workspace-top .icon-btn{width:44px;height:44px}.page-heading h1{font-size:23px}.dashboard-grid{grid-template-columns:1fr}.panel-head{padding:11px 14px}.panel-body{padding:14px}.panel-head h2{font-size:13px}.panel-head h2 small{display:block;margin:4px 0 0}.page-actions{justify-content:flex-start}.page-actions .primary{flex:1}.nav{display:flex;position:fixed;left:0;right:0;bottom:0;transform:none;width:100%;border-radius:0;padding:6px 12px calc(10px + env(safe-area-inset-bottom));background:#ffffffed;z-index:6;box-shadow:none}.nav button{min-width:65px;color:#78736c;font-size:10px}.nav button.active{color:#d54c1b}.nav button.active .nav-icon{background:#ffede2}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{padding:16px 10px}.stat strong{font-size:22px}.filter-bar{gap:10px;padding:12px}.filter-bar label{min-width:120px}.filter-bar button{flex:1}.transaction-row{grid-template-columns:19px 26px minmax(80px,1fr) auto 28px;gap:7px;padding:8px 10px}.tx-category{grid-column:3;grid-row:auto;font-size:10px;margin-top:-5px}.transaction-row>b{grid-column:4;grid-row:1 / span 2}.transaction-row>.quiet{grid-column:5;grid-row:1 / span 2}.tx-name{font-size:12px;grid-column:3}.transaction-row>input{grid-row:1 / span 2}.transaction-row>.merchant-mark{grid-row:1 / span 2}.transaction-row .merchant-mark{width:25px;height:25px}.account-row .row-actions{width:100%;margin-left:42px}.line-chart{min-width:330px}.chart-data{margin-top:5px}.modal-backdrop{align-items:end;padding:10px}.modal{max-height:88vh;border-radius:16px 16px 10px 10px;padding:18px}.toast{bottom:88px}.content-with-aside{display:flex;flex-direction:column}.content-with-aside>*{width:100%}.content-with-aside>.panel:last-child{order:0}.form-grid.two-columns{grid-template-columns:1fr}.compact-row{gap:9px}.compact-row .badge{font-size:10px}.setup-status{align-items:start}.panel .stats-grid{margin:0}.budget-left{font-size:27px}}
 
 .wallet-notice{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;padding:12px;background:var(--paper);border-radius:8px}
+
+/* Cash-flow Sankey: readable labels outside proportional ribbons. */
+.flow-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:4px 0 18px;font-size:13px}
+.flow-summary>span{color:var(--muted)}
+.flow-summary>strong{font-size:20px;font-variant-numeric:tabular-nums}
+.flow-scroll{border:1px solid var(--line);border-radius:8px;padding:10px 0;overscroll-behavior-x:contain}
+.flow-scroll:focus-visible{outline:3px solid #007f9b;outline-offset:2px}
+.flow-chart{width:100%;min-width:700px;max-width:1000px;margin:0 auto;display:block}
+.flow-chart text{font:13px system-ui;fill:#46433e}
+.flow-chart tspan{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}
+.flow-chart .flow-heading{font-size:12px;font-weight:700;fill:#68645d}
+.flow-scroll-hint{display:none}
+.flow-data>summary{min-height:44px;align-content:center;color:var(--ink);font-size:13px;font-weight:600}
+.flow-tables{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}
+.flow-values{table-layout:fixed;font-size:12px;color:var(--ink)}
+.flow-values caption{text-align:left;font-size:13px;font-weight:700;padding:12px 8px}
+.flow-values th,.flow-values td{padding:12px 8px;vertical-align:top;overflow-wrap:anywhere}
+.flow-values th{color:var(--ink);font-weight:500}
+.flow-values th:first-child{width:62%}
+.flow-values td,.flow-values thead th:last-child{text-align:right}
+.flow-values tfoot{background:#f8f7f4;font-weight:700}
+.flow-values tfoot th{font-weight:700}
+.flow-key{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.flow-members summary{padding:10px 0;min-height:44px;color:var(--muted);cursor:pointer}
+.flow-members ul{list-style:none;margin:0;padding:0}
+.flow-members li{display:flex;justify-content:space-between;gap:8px;margin:10px 0;font-size:11px}
+.flow-members li span{min-width:0;overflow-wrap:anywhere}
+.flow-members li b{font-weight:500;text-align:right}
+.flow-empty h3{margin:0 0 8px}
+.flow-empty p{margin:0;line-height:1.6}
+@media(max-width:1050px){.flow-scroll-hint{display:block}}
+@media(max-width:760px){.flow-tables{grid-template-columns:1fr;gap:14px}.flow-summary>strong{font-size:18px}}
