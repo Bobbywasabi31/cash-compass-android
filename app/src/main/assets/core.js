@@ -397,7 +397,7 @@
     const unique=[...new Set(amounts)];
     if(unique.length!==1||!Number.isFinite(unique[0])||unique[0]<=0||unique[0]>1000000000)return {...result,reason:'Could not identify one positive USD purchase amount.'};
     result.amount=number(unique[0]);
-    if(/\b(refund|refunded|reversed|reversal|declined|failed|cancelled|canceled|unsuccessful|pending|request|verification|verify|cashback|reward|offer|discount|save up to)\b/i.test(text))return {...result,type:/\brefund(?:ed)?\b/i.test(text)?'income':'expense',reason:'This may be a refund, pending payment, failed purchase, or non-purchase notice.'};
+    if(/\b(refund|refunded|reversed|reversal|declined|failed|cancelled|canceled|unsuccessful|pending|request|verification|verify|cashback|reward|offer|discount|save up to|balance|bill due|coupon|gift card)\b|[-−]\s*(?:US\$|USD\s*\$?|\$)|(?:US\$|USD\s*\$?|\$)\s*[-−]/i.test(text))return {...result,type:/\brefund(?:ed)?\b/i.test(text)?'income':'expense',reason:'This may be a refund, pending payment, failed purchase, or non-purchase notice.'};
     const amountPattern='(?:US\\$|USD\\s*\\$?|\\$)\\s*[0-9][0-9.,]*(?:\\s*USD)?';
     const explicit=new RegExp('(?:you\\s+)?(?:paid|spent|purchase(?:d)?(?:\\s+of)?|payment(?:\\s+of)?)?\\s*'+amountPattern+'\\s+(?:at|to)\\s+([^\\n]+)','i').exec(text);
     if(explicit)result.label=explicit[1].replace(/\s+(?:with|using|on)\s+(?:your\s+)?(?:Visa|Mastercard|Amex|American Express|Discover|card)\b.*$/i,'').trim().replace(/[.!]$/,'');
@@ -406,6 +406,8 @@
       && new RegExp('^(?:you\\s+(?:paid|spent)\\s+)?'+amountPattern+'(?:\\s|$)','i').test(body)
       && /\b(?:paid|spent|with|using|Visa|Mastercard|Amex|Discover)\b/i.test(body))result.label=title;
     if(!result.label||result.label.length>80)return {...result,label:'',reason:'Confirm the merchant from the notification.'};
+    const purchaseWords=/\b(?:paid|spent|purchased?|payment|charged)\b/i.test(text),currencyLed=new RegExp('^(?:(?:Google Wallet|Google Pay)\\n)?'+amountPattern+'\\s+(?:at|to)\\s+','i').test(text);
+    if(explicit&&!purchaseWords&&!currencyLed)return {...result,reason:'Confirm this is a completed purchase.'};
     if(!validDate(date)||date>localDate())return {...result,reason:'Confirm the transaction date.'};
     return {...result,safe:true};
   }
