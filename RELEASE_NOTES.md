@@ -1,4 +1,14 @@
-# Cash Compass 1.4.0 preview
+# Cash Compass 1.5.0 preview
+
+- Opt-in Google Wallet notification capture, processed entirely on-device.
+- Automatic insertion of clear English USD purchases into a chosen account when Cash Compass opens.
+- Review inbox for unclear details, refunds, failed/pending payments, changed alerts, and possible duplicates.
+- Repeated notifications do not create duplicate transactions; reviewed changes update the linked transaction with reversible balance adjustments.
+- Choose balance adjustment or history-only import; pause capture or revoke access in Android settings.
+- Enable from You → Google Wallet purchase import. Android notification access must be granted separately.
+- Notification formats vary; unknown formats need review. No bank connection, historical Wallet access, live currency conversion, or actual payment actions.
+
+### Workspace features retained
 
 - New customizable dashboard, light card layout, desktop sidebar, and phone navigation.
 - Grouped accounts, assets/liabilities summary, and recorded net-worth history.
@@ -26,4 +36,4 @@ Back up your plan in You → Backup / restore before uninstalling the previous p
 
 ## Boundaries
 
-No bank sync or automatic subscription detection. CSV imports default to history already included in balances; choose Apply only for amounts not yet reflected. CSV is transaction history only; use JSON backup for a complete plan. Spreadsheet formula-like text is prefixed with an apostrophe in CSV exports. Transactions are manual; settle planned bills from Recurring to avoid duplicate records. Budget categories track spending but do not reserve additional cash in the forecast. Changing budget settings recalculates rollover history from the start month. Deleting a settled transaction reverses its original cash/tax adjustment but does not rewind the recurring schedule.
+No bank sync or automatic subscription detection. CSV imports default to history already included in balances; choose Apply only for amounts not yet reflected. CSV is transaction history only; use JSON backup for a complete plan. Spreadsheet formula-like text is prefixed with an apostrophe in CSV exports. Transactions can be entered manually or imported from Wallet notices; check existing records before settling planned bills from Recurring to avoid duplicates. Budget categories track spending but do not reserve additional cash in the forecast. Changing budget settings recalculates rollover history from the start month. Deleting a settled transaction reverses its original cash/tax adjustment but does not rewind the recurring schedule.
