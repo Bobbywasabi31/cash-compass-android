@@ -4,9 +4,17 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.5.1-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.6.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.6: Sankey cash-flow diagram
+
+Open **Cash Flow** for a monthly, quarterly, or annual diagram, or **Reports → Cash Flow** for a custom date range. Account and category/merchant filters apply to the diagram and its exact-value tables.
+
+Proportional bands show recorded income flowing into spending groups and **Saved** (income minus expenses). When expenses exceed income, a **Funding gap** balances the diagram without assuming borrowing or another funding source. Empty and transfer-only periods show an empty state; transfers never count as income or spending. Saved is not an account balance, goal contribution, or safe-to-spend estimate.
+
+Groups below 3% of their side's total are combined into **Other**. The diagram shows up to five named income groups and six named expense groups; additional groups also join Other. An existing Other category joins the same bucket. Open **View exact amounts and Other details** to see every included group and cent. On phones, swipe the chart horizontally or use the stacked tables. This is a read-only view of recorded transactions; no new permissions, data collection, or backup schema changes.
 
 ## New in 1.5: Google Wallet purchase import
 
