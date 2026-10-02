@@ -1,5 +1,6 @@
-# Cash Compass 1.5.0 preview
+# Cash Compass 1.5.1 preview
 
+- Recognize merchant-title purchase notices with numeric merchant prefixes, slashes, and wrapped bank/card names.
 - Opt-in Google Wallet notification capture, processed entirely on-device.
 - Automatic insertion of clear English USD purchases into a chosen account when Cash Compass opens.
 - Review inbox for unclear details, refunds, failed/pending payments, changed alerts, and possible duplicates.
