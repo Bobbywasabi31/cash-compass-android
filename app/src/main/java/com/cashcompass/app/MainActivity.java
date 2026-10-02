@@ -99,7 +99,28 @@ public class MainActivity extends Activity {
         });
     }
 
+    private boolean walletAccess() {
+        android.content.ComponentName component = new android.content.ComponentName(this, WalletNotifications.class);
+        if (Build.VERSION.SDK_INT >= 27) return getSystemService(android.app.NotificationManager.class).isNotificationListenerAccessGranted(component);
+        String enabled = android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+        if (enabled != null) for (String name : enabled.split(":")) if (component.equals(android.content.ComponentName.unflattenFromString(name))) return true;
+        return false;
+    }
+    @Override protected void onResume() {
+        super.onResume();
+        if (app != null) callback("cashCompassWalletRefresh", "");
+    }
     public final class Bridge {
+        @android.webkit.JavascriptInterface public String walletStatus() { return WalletNotifications.status(MainActivity.this, walletAccess()); }
+        @android.webkit.JavascriptInterface public boolean walletEnable(boolean enabled) { return WalletNotifications.enable(MainActivity.this, enabled); }
+        @android.webkit.JavascriptInterface public boolean walletAck(String json) { return WalletNotifications.acknowledge(MainActivity.this, json); }
+        @android.webkit.JavascriptInterface public boolean walletReset() { return WalletNotifications.reset(MainActivity.this); }
+        @android.webkit.JavascriptInterface public void walletSettings() {
+            runOnUiThread(() -> {
+                try { startActivity(new android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
+                catch (android.content.ActivityNotFoundException e) { callback("cashCompassNotice", "Open Android Settings and search for Notification access."); }
+            });
+        }
         @android.webkit.JavascriptInterface public boolean notificationsAllowed() {
             return getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
         }
