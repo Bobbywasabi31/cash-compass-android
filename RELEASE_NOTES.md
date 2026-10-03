@@ -1,3 +1,8 @@
+# Cash Compass 1.34.0 preview
+
+- **Explain-this-number (roadmap #73):** Tap "Available before payday" on Home for calculation steps.
+- **Natural-language quick entry (roadmap #74):** Transactions quick box parses "12.50 chipotle".
+
 # Cash Compass 1.33.0 preview
 
 - **Anomaly detection (roadmap #67):** Insights flags unusually large charges and likely duplicates.

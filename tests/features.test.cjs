@@ -944,3 +944,34 @@ test('anomalies detect large charges and duplicates',()=>{
  const a2=C.anomalies(s);
  assert.ok(a2.duplicates.length>0);
 });
+
+test('parseQuickEntry parses amount and label',()=>{
+ const p=C.parseQuickEntry('12.50 chipotle');
+ assert.equal(p.amount,12.50);
+ assert.equal(p.label,'chipotle');
+ assert.equal(p.type,'expense');
+ assert.equal(p.category,'Food');
+ const p2=C.parseQuickEntry('chipotle 12.50');
+ assert.equal(p2.amount,12.50);
+ assert.equal(p2.label,'chipotle');
+ const p3=C.parseQuickEntry('5000 paycheck');
+ assert.equal(p3.type,'income');
+ assert.equal(p3.amount,5000);
+ assert.throws(()=>C.parseQuickEntry(''));
+ assert.throws(()=>C.parseQuickEntry('no amount here'));
+});
+
+test('explainNumber provides calculation steps',()=>{
+ const s=C.blank();
+ s.profile.balance=2000;
+ s.incomes.push({id:'i1',label:'Job',amount:3000,date:'2026-10-15',repeat:'monthly',category:'Income',accountId:'cash'});
+ s.bills.push({id:'b1',label:'Rent',amount:1000,date:'2026-10-10',repeat:'monthly',category:'Housing',accountId:'cash',anchorDay:10});
+ const e=C.explainNumber(s,'safe');
+ assert.equal(e.title,'Safe to spend');
+ assert.ok(e.steps.length>0);
+ assert.ok(e.steps.some(s=>s.includes('Cash')));
+ const r=C.explainNumber(s,'runway');
+ assert.equal(r.title,'Runway');
+ assert.ok(r.steps.length>0);
+ assert.equal(C.explainNumber(s,'unknown'),null);
+});

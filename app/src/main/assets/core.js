@@ -85,7 +85,61 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+  function parseQuickEntry(text) {
+    text = String(text || '').trim();
+    if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
+    // Find amount: first number (with optional $ and decimals)
+    const m = text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+    if (!m) throw Error('Include an amount, like "12.50 chipotle".');
+    const amount = number(m[1], 0.01);
+    // Label is the text without the amount
+    let labelText = text.replace(m[0], '').trim().replace(/\s+/g, ' ');
+    if (!labelText) labelText = 'Quick entry';
+    // Detect type: "income", "paycheck", "refund" suggest income
+    const type = /\b(income|paycheck|salary|refund|reimbursed)\b/i.test(text) ? 'income' : 'expense';
+    // Detect category from keywords
+    const catMap = [
+      [/\b(chipotle|mcdonald|restaurant|dining|food|grocery|starbucks|coffee)\b/i, 'Food'],
+      [/\b(uber|lyft|gas|shell|transport|parking|transit)\b/i, 'Transport'],
+      [/\b(rent|mortgage|housing|apartment)\b/i, 'Housing'],
+      [/\b(netflix|spotify|entertainment|movie|game)\b/i, 'Entertainment'],
+      [/\b(cvs|walgreens|pharmacy|doctor|health)\b/i, 'Health'],
+      [/\b(amazon|target|walmart|shopping|clothes)\b/i, 'Shopping'],
+    ];
+    let category = 'Other';
+    for (const [re, cat] of catMap) if (re.test(text)) { category = cat; break; }
+    return { amount, label: label(labelText), type, category, date: localDate() };
+  }
+  // Explain-this-number (roadmap #73): calculation steps for key figures.
+  function explainNumber(state, kind) {
+    const today = localDate();
+    if (kind === 'safe') {
+      const m = forecast(state, today);
+      return { title: 'Safe to spend', value: m.safe,
+        steps: [
+          `Cash entered: ${m.cash}`,
+          `Minus reserved for bills due before next income: ${m.reserved}`,
+          `Minus safety buffer: ${m.buffer}`,
+          m.shortfall > 0 ? `Shortfall: ${m.shortfall} (bills exceed cash)` : null,
+          `Safe to spend: ${m.safe}`
+        ].filter(Boolean) };
+    }
+    if (kind === 'runway') {
+      const inc = avgMonthly(state, 'income', today, 3), exp = avgMonthly(state, 'expense', today, 3);
+      const r = runway(state, inc, exp);
+      return { title: 'Runway', value: r.indefinite ? 'Indefinite' : `${r.months.toFixed(1)} months`,
+        steps: [
+          `Cash: ${r.cash}`,
+          `Average monthly income (3mo): ${inc}`,
+          `Average monthly spending (3mo): ${exp}`,
+          `Monthly burn: ${r.burn}`,
+          r.indefinite ? 'Income covers spending — runway is indefinite.' : `Runway: ${r.cash} ÷ ${r.burn} = ${r.months.toFixed(1)} months`
+        ] };
+    }
+    return null;
+  }
+  // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
   function anomalies(state) {
     const large = [];
     const byCategory = {};
@@ -291,7 +345,61 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+  function parseQuickEntry(text) {
+    text = String(text || '').trim();
+    if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
+    // Find amount: first number (with optional $ and decimals)
+    const m = text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+    if (!m) throw Error('Include an amount, like "12.50 chipotle".');
+    const amount = number(m[1], 0.01);
+    // Label is the text without the amount
+    let labelText = text.replace(m[0], '').trim().replace(/\s+/g, ' ');
+    if (!labelText) labelText = 'Quick entry';
+    // Detect type: "income", "paycheck", "refund" suggest income
+    const type = /\b(income|paycheck|salary|refund|reimbursed)\b/i.test(text) ? 'income' : 'expense';
+    // Detect category from keywords
+    const catMap = [
+      [/\b(chipotle|mcdonald|restaurant|dining|food|grocery|starbucks|coffee)\b/i, 'Food'],
+      [/\b(uber|lyft|gas|shell|transport|parking|transit)\b/i, 'Transport'],
+      [/\b(rent|mortgage|housing|apartment)\b/i, 'Housing'],
+      [/\b(netflix|spotify|entertainment|movie|game)\b/i, 'Entertainment'],
+      [/\b(cvs|walgreens|pharmacy|doctor|health)\b/i, 'Health'],
+      [/\b(amazon|target|walmart|shopping|clothes)\b/i, 'Shopping'],
+    ];
+    let category = 'Other';
+    for (const [re, cat] of catMap) if (re.test(text)) { category = cat; break; }
+    return { amount, label: label(labelText), type, category, date: localDate() };
+  }
+  // Explain-this-number (roadmap #73): calculation steps for key figures.
+  function explainNumber(state, kind) {
+    const today = localDate();
+    if (kind === 'safe') {
+      const m = forecast(state, today);
+      return { title: 'Safe to spend', value: m.safe,
+        steps: [
+          `Cash entered: ${m.cash}`,
+          `Minus reserved for bills due before next income: ${m.reserved}`,
+          `Minus safety buffer: ${m.buffer}`,
+          m.shortfall > 0 ? `Shortfall: ${m.shortfall} (bills exceed cash)` : null,
+          `Safe to spend: ${m.safe}`
+        ].filter(Boolean) };
+    }
+    if (kind === 'runway') {
+      const inc = avgMonthly(state, 'income', today, 3), exp = avgMonthly(state, 'expense', today, 3);
+      const r = runway(state, inc, exp);
+      return { title: 'Runway', value: r.indefinite ? 'Indefinite' : `${r.months.toFixed(1)} months`,
+        steps: [
+          `Cash: ${r.cash}`,
+          `Average monthly income (3mo): ${inc}`,
+          `Average monthly spending (3mo): ${exp}`,
+          `Monthly burn: ${r.burn}`,
+          r.indefinite ? 'Income covers spending — runway is indefinite.' : `Runway: ${r.cash} ÷ ${r.burn} = ${r.months.toFixed(1)} months`
+        ] };
+    }
+    return null;
+  }
+  // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
   function anomalies(state) {
     const large = [];
     const byCategory = {};
@@ -423,7 +531,61 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+  function parseQuickEntry(text) {
+    text = String(text || '').trim();
+    if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
+    // Find amount: first number (with optional $ and decimals)
+    const m = text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+    if (!m) throw Error('Include an amount, like "12.50 chipotle".');
+    const amount = number(m[1], 0.01);
+    // Label is the text without the amount
+    let labelText = text.replace(m[0], '').trim().replace(/\s+/g, ' ');
+    if (!labelText) labelText = 'Quick entry';
+    // Detect type: "income", "paycheck", "refund" suggest income
+    const type = /\b(income|paycheck|salary|refund|reimbursed)\b/i.test(text) ? 'income' : 'expense';
+    // Detect category from keywords
+    const catMap = [
+      [/\b(chipotle|mcdonald|restaurant|dining|food|grocery|starbucks|coffee)\b/i, 'Food'],
+      [/\b(uber|lyft|gas|shell|transport|parking|transit)\b/i, 'Transport'],
+      [/\b(rent|mortgage|housing|apartment)\b/i, 'Housing'],
+      [/\b(netflix|spotify|entertainment|movie|game)\b/i, 'Entertainment'],
+      [/\b(cvs|walgreens|pharmacy|doctor|health)\b/i, 'Health'],
+      [/\b(amazon|target|walmart|shopping|clothes)\b/i, 'Shopping'],
+    ];
+    let category = 'Other';
+    for (const [re, cat] of catMap) if (re.test(text)) { category = cat; break; }
+    return { amount, label: label(labelText), type, category, date: localDate() };
+  }
+  // Explain-this-number (roadmap #73): calculation steps for key figures.
+  function explainNumber(state, kind) {
+    const today = localDate();
+    if (kind === 'safe') {
+      const m = forecast(state, today);
+      return { title: 'Safe to spend', value: m.safe,
+        steps: [
+          `Cash entered: ${m.cash}`,
+          `Minus reserved for bills due before next income: ${m.reserved}`,
+          `Minus safety buffer: ${m.buffer}`,
+          m.shortfall > 0 ? `Shortfall: ${m.shortfall} (bills exceed cash)` : null,
+          `Safe to spend: ${m.safe}`
+        ].filter(Boolean) };
+    }
+    if (kind === 'runway') {
+      const inc = avgMonthly(state, 'income', today, 3), exp = avgMonthly(state, 'expense', today, 3);
+      const r = runway(state, inc, exp);
+      return { title: 'Runway', value: r.indefinite ? 'Indefinite' : `${r.months.toFixed(1)} months`,
+        steps: [
+          `Cash: ${r.cash}`,
+          `Average monthly income (3mo): ${inc}`,
+          `Average monthly spending (3mo): ${exp}`,
+          `Monthly burn: ${r.burn}`,
+          r.indefinite ? 'Income covers spending — runway is indefinite.' : `Runway: ${r.cash} ÷ ${r.burn} = ${r.months.toFixed(1)} months`
+        ] };
+    }
+    return null;
+  }
+  // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
   function anomalies(state) {
     const large = [];
     const byCategory = {};
@@ -1138,6 +1300,60 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+  function parseQuickEntry(text) {
+    text = String(text || '').trim();
+    if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
+    // Find amount: first number (with optional $ and decimals)
+    const m = text.match(/\$?\s*(\d+(?:\.\d{1,2})?)/);
+    if (!m) throw Error('Include an amount, like "12.50 chipotle".');
+    const amount = number(m[1], 0.01);
+    // Label is the text without the amount
+    let labelText = text.replace(m[0], '').trim().replace(/\s+/g, ' ');
+    if (!labelText) labelText = 'Quick entry';
+    // Detect type: "income", "paycheck", "refund" suggest income
+    const type = /\b(income|paycheck|salary|refund|reimbursed)\b/i.test(text) ? 'income' : 'expense';
+    // Detect category from keywords
+    const catMap = [
+      [/\b(chipotle|mcdonald|restaurant|dining|food|grocery|starbucks|coffee)\b/i, 'Food'],
+      [/\b(uber|lyft|gas|shell|transport|parking|transit)\b/i, 'Transport'],
+      [/\b(rent|mortgage|housing|apartment)\b/i, 'Housing'],
+      [/\b(netflix|spotify|entertainment|movie|game)\b/i, 'Entertainment'],
+      [/\b(cvs|walgreens|pharmacy|doctor|health)\b/i, 'Health'],
+      [/\b(amazon|target|walmart|shopping|clothes)\b/i, 'Shopping'],
+    ];
+    let category = 'Other';
+    for (const [re, cat] of catMap) if (re.test(text)) { category = cat; break; }
+    return { amount, label: label(labelText), type, category, date: localDate() };
+  }
+  // Explain-this-number (roadmap #73): calculation steps for key figures.
+  function explainNumber(state, kind) {
+    const today = localDate();
+    if (kind === 'safe') {
+      const m = forecast(state, today);
+      return { title: 'Safe to spend', value: m.safe,
+        steps: [
+          `Cash entered: ${m.cash}`,
+          `Minus reserved for bills due before next income: ${m.reserved}`,
+          `Minus safety buffer: ${m.buffer}`,
+          m.shortfall > 0 ? `Shortfall: ${m.shortfall} (bills exceed cash)` : null,
+          `Safe to spend: ${m.safe}`
+        ].filter(Boolean) };
+    }
+    if (kind === 'runway') {
+      const inc = avgMonthly(state, 'income', today, 3), exp = avgMonthly(state, 'expense', today, 3);
+      const r = runway(state, inc, exp);
+      return { title: 'Runway', value: r.indefinite ? 'Indefinite' : `${r.months.toFixed(1)} months`,
+        steps: [
+          `Cash: ${r.cash}`,
+          `Average monthly income (3mo): ${inc}`,
+          `Average monthly spending (3mo): ${exp}`,
+          `Monthly burn: ${r.burn}`,
+          r.indefinite ? 'Income covers spending — runway is indefinite.' : `Runway: ${r.cash} ÷ ${r.burn} = ${r.months.toFixed(1)} months`
+        ] };
+    }
+    return null;
   }
   // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
   function anomalies(state) {
@@ -2090,7 +2306,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
