@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -84,6 +84,11 @@
     result.debts = list(raw.debts).map((x,i) => {
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
+    });
+    // Net worth milestones (roadmap #50).
+    result.milestones = list(raw.milestones).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
+      return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
@@ -660,6 +665,42 @@
       fell: { count: down.length, total: dollars(down.reduce((s, r) => s + cents(-r.change), 0)), top: down[0] || null },
       savings: cur && prev && cur.rate !== null && prev.rate !== null ? { cur: cur.rate, prev: prev.rate, saved: cur.saved, prevSaved: prev.saved } : null,
       bills: { count: bills.length, total: dollars(bills.reduce((s, b) => s + cents(b.amount), 0)) } };
+  }
+  // Savings goal auto-allocation (roadmap #49): per-paycheck contribution
+  // needed to hit the goal deadline.
+  function goalPaycheckAmount(goal, payFrequency = 'monthly') {
+    const remaining = Math.max(0, cents(goal.target) - cents(goal.saved));
+    if (remaining <= 0) return { perPaycheck: 0, paychecks: 0, onTrack: true };
+    const today = localDate();
+    let paychecks = 0;
+    if (goal.deadline && goal.deadline > today) {
+      const [y1, m1, d1] = today.split('-').map(Number);
+      const [y2, m2, d2] = goal.deadline.split('-').map(Number);
+      const monthsLeft = Math.max(1, (y2 - y1) * 12 + (m2 - m1) + (d2 >= d1 ? 1 : 0));
+      paychecks = payFrequency === 'weekly' ? monthsLeft * 4 : payFrequency === 'biweekly' ? monthsLeft * 2 : monthsLeft;
+    } else {
+      paychecks = 12; // no deadline: spread over a year
+    }
+    const perPaycheck = dollars(Math.ceil(remaining / paychecks));
+    const currentMonthly = goal.monthly || 0;
+    const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
+    return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Net worth milestones (roadmap #50): progress and projected date based
+  // on recent savings rate.
+  function milestoneProgress(state, milestone) {
+    const worth = netWorth(state);
+    const progress = milestone.target > 0 ? Math.min(100, Math.round(cents(worth) / cents(milestone.target) * 100)) : 0;
+    // Project date using 3-month average savings
+    const sr = savingsRate(state, 3);
+    const monthlySavings = sr.rows.length ? dollars(sr.rows.reduce((s, r) => s + cents(r.saved), 0) / sr.rows.length) : 0;
+    let projectedDate = null;
+    if (monthlySavings > 0 && worth < milestone.target) {
+      const monthsNeeded = Math.ceil((cents(milestone.target) - cents(worth)) / cents(monthlySavings));
+      const [y, m] = localDate().slice(0, 7).split('-').map(Number);
+      projectedDate = new Date(Date.UTC(y, m - 1 + monthsNeeded, 1)).toISOString().slice(0, 7);
+    }
+    return { worth, progress, monthlySavings, projectedDate, reached: worth >= milestone.target };
   }
   // Debt payoff planner (roadmap #45): snowball vs avalanche comparison.
   // Sinking funds (roadmap #48): monthly set-aside for annual/irregular
@@ -1380,7 +1421,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

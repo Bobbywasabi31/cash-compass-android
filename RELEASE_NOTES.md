@@ -1,3 +1,8 @@
+# Cash Compass 1.27.0 preview
+
+- **Savings goal auto-allocation (roadmap #49):** each goal shows the per-paycheck contribution needed to hit its deadline and whether you're on track.
+- **Net worth milestones (roadmap #50):** Goals → Net worth milestones tracks targets with progress bars and projected dates based on your recent savings rate.
+
 # Cash Compass 1.26.0 preview
 
 - **Debt payoff planner (roadmap #45):** Plan → Debt payoff planner compares snowball vs avalanche strategies with payoff time, payoff date, and total interest. Add debts with balance, APR, and minimum payment.

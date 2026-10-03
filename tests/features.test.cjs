@@ -771,3 +771,25 @@ test('sinkingFunds calculates monthly set-aside',()=>{
  assert.equal(n.sinkingFunds.length,1);
  assert.equal(n.debts.length,0);
 });
+
+test('goalPaycheckAmount calculates per-paycheck needed',()=>{
+ const goal={label:'Vacation',target:1200,saved:200,deadline:'2027-10-01',monthly:50};
+ const r=C.goalPaycheckAmount(goal,'monthly');
+ assert.ok(r.perPaycheck>0);
+ assert.ok(r.paychecks>0);
+ assert.equal(r.onTrack,false);
+ const done={label:'Done',target:1000,saved:1000,deadline:'2027-10-01',monthly:0};
+ assert.equal(C.goalPaycheckAmount(done,'monthly').perPaycheck,0);
+});
+
+test('milestoneProgress tracks net worth targets',()=>{
+ const s=C.blank();
+ s.profile.balance=50000;
+ s.milestones.push({id:'m1',label:'$100k',target:100000});
+ const m=C.milestoneProgress(s,s.milestones[0]);
+ assert.equal(m.worth,50000);
+ assert.equal(m.progress,50);
+ assert.equal(m.reached,false);
+ const n=C.normalize(s);
+ assert.equal(n.milestones.length,1);
+});

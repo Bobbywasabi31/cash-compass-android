@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.26.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.27.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.27.0: Goal auto-allocation and net worth milestones
+
+- **Savings goal auto-allocation** (roadmap #49): each goal now shows the per-paycheck contribution needed to hit its deadline, and whether you're on track based on your current monthly reserve.
+- **Net worth milestones** (roadmap #50): Goals → Net worth milestones tracks targets with progress bars and projected dates based on your recent savings rate.
 
 ## New in 1.26.0: Debt payoff planner and sinking funds
 
