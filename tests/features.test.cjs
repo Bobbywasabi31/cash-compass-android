@@ -146,3 +146,40 @@ test('subscription detector finds monthly charges, flags price hikes, ignores no
  const subs2=C.detectSubscriptions(s,'2026-09-18');
  assert.equal(subs2[0].alreadyPlanned,true);
 });
+
+test('variable bill estimates average the last 3 matching expenses',()=>{
+ const s=C.blank();let n=0;const id=()=>'t'+(++n);
+ const add=(date,amount,label='City Power')=>
+   C.saveTransaction(s,{id:id(),label,type:'expense',amount,date,category:'Utilities',adjust:false});
+ add('2026-07-10',80);add('2026-08-10',90);add('2026-09-10',100);add('2026-06-10',200);
+ // Last 3 only: (80+90+100)/3 = 90.
+ assert.equal(C.estimateBillAmount(s,'City Power','2026-09-18'),90);
+ // Processor-noise labels match the same merchant (roadmap #31).
+ assert.equal(C.estimateBillAmount(s,'SQ *City Power #42','2026-09-18'),90);
+ // No history: null, and the entered amount is used instead.
+ assert.equal(C.estimateBillAmount(s,'Unknown Utility','2026-09-18'),null);
+ // Forecast uses the estimate for flagged bills.
+ s.bills.push({id:'u',label:'City Power',amount:50,date:'2026-10-10',estimate:true});
+ s.incomes.push({id:'i',label:'Job',amount:2000,date:'2026-10-05',repeat:'none'});
+ const m=C.forecast(s,'2026-10-01');
+ const billEvent=m.timeline.find(e=>e.kind==='bills');
+ assert.equal(billEvent.amount,90);
+ assert.equal(billEvent.estimated,true);
+ // Unflagged bills keep their entered amount.
+ s.bills.push({id:'r',label:'Rent',amount:900,date:'2026-10-12'});
+ const m2=C.forecast(s,'2026-10-01');
+ assert.equal(m2.timeline.find(e=>e.label==='Rent').amount,900);
+});
+
+test('merchant cleanup strips processor noise and trailing ids',()=>{
+ assert.equal(C.merchantKey('SQ *BLUE BOTTLE #123'),'blue bottle');
+ assert.equal(C.merchantKey('TST* Taco Truck'),'taco truck');
+ assert.equal(C.merchantKey('SP *GITHUB  4021'),'github');
+ assert.equal(C.merchantKey('Shell #42 - Fuel'),'shell 42 fuel');
+ assert.equal(C.merchantKey('Motel 6'),'motel 6'); // single digits are kept
+ assert.equal(C.merchantKey('  Coffee Shop '),'coffee shop');
+ // Same merchant with different noise suggests the same memory entry.
+ const s=C.blank();
+ C.saveTransaction(s,{id:'a',label:'SQ *BLUE BOTTLE #123',type:'expense',amount:5,date:'2026-09-18',category:'Dining'});
+ assert.equal(C.suggestMerchant(s,'Blue Bottle').category,'Dining');
+});

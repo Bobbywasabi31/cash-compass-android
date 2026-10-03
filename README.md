@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.8.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.9.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.9.0: Variable bill estimates and merchant name cleanup
+
+- **Variable bill estimates** (roadmap #26): bills like utilities can now learn from your history. Tick "Estimate from my recent history" on any bill and the forecast uses the average of your last 3 recorded payments for that merchant, marked with ~ wherever it appears.
+- **Merchant name cleanup** (roadmap #31): processor noise such as "SQ *", "TST*", and trailing store numbers is stripped automatically, so the same merchant always matches — better memory suggestions, cleaner subscription detection, and more accurate bill estimates.
 
 ## New in 1.8.0: Late-paycheck scenario and subscription detector
 

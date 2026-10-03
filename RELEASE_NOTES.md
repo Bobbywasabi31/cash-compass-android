@@ -1,3 +1,8 @@
+# Cash Compass 1.9.0 preview
+
+- **Variable bill estimates (roadmap #26):** bills such as utilities can now learn from your recorded history. Tick "Estimate from my recent history" on any bill and the 30-day forecast reserves the average of your last 3 payments for that merchant instead of the entered amount, marked with ~ everywhere it appears. Falls back to the entered amount when there is no history.
+- **Merchant name cleanup (roadmap #31):** payment-processor noise like "SQ *", "TST*", "SP *", and trailing store numbers is stripped automatically, so the same merchant always maps to one entry — improving merchant memory, subscription detection, and bill estimates.
+
 # Cash Compass 1.8.0 preview
 
 - **Late-paycheck scenario (roadmap #18):** the Plan tab's "What if pay changes?" section now answers "what if payday slips N days?" — the forecast models the delayed paycheck, shows which bills land before it, how deep the cash trough gets, and your new per-day safe amount through the slipped payday.

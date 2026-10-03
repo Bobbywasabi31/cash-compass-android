@@ -52,6 +52,7 @@
           out.anchorDay = Number.isInteger(item.anchorDay) && item.anchorDay >= 1 && item.anchorDay <= 31 ? item.anchorDay : Number(item.date.slice(8));
           out.category = label(item.category || (kind === 'bills' ? 'Other' : 'Income'));
           out.date = item.date; out.amount = number(item.amount, 0.01); out.gross = kind === 'incomes' && item.gross === true;
+          out.estimate = kind === 'bills' && item.estimate === true;
         }
         return out;
       });
@@ -193,7 +194,11 @@
     // Late-paycheck scenario (roadmap #18): model payday arriving slipDays late.
     const slipDate = next ? addDays(next.date, slipDays) : null;
     const horizon = next && slipDate > end ? slipDate : end;
-    state = {...state, incomes: expandedIncomes, bills: expand(state.bills, horizon)};
+    state = {...state, incomes: expandedIncomes, bills: expand(state.bills.map(b => {
+      if (!b.estimate) return b;
+      const est = estimateBillAmount(state, b.label, today);
+      return est == null ? b : {...b, amount: est, estimated: true};
+    }), horizon)};
     const before = state.bills.filter(x => !next || x.date <= slipDate);
     const held = before.reduce((sum, x) => sum + cents(x.amount), 0);
     const reserved = reservesCents(state);
@@ -295,8 +300,16 @@
   // Merchant-to-category memory (roadmap #3): remember the category and account
   // used for each merchant so future transactions can pre-fill them. Learned
   // automatically on save; transfers are skipped because their category is structural.
+  // Merchant name cleanup (roadmap #31): strip payment-processor noise
+  // ("SQ *", "TST*", "SP *", trailing store numbers) so the same merchant
+  // always maps to one key.
   function merchantKey(value) {
-    return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ').slice(0, 80);
+    let s = String(value == null ? '' : value).toLowerCase();
+    s = s.replace(/^(sq|sp|tst|pp|int)\s*\*\s*/i, '');   // processor prefixes
+    s = s.replace(/\s*\*\s*/g, ' ');
+    s = s.replace(/\s#?\d{2,}\s*$/,'');                  // trailing store/terminal ids
+    s = s.replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ').slice(0, 80);
+    return s;
   }
   function learnMerchant(state, t) {
     if (!t || t.type === 'transfer') return;
@@ -530,6 +543,21 @@
     });
     return out.sort((a, b) => b.amount - a.amount);
   }
+  // Variable bill estimates (roadmap #26): average the last 3 recorded
+  // expenses for the same merchant (last 12 months). Returns null when
+  // there is no history to learn from.
+  function estimateBillAmount(state, label, today = localDate()) {
+    const key = merchantKey(label);
+    if (!key || !validDate(today)) return null;
+    const since = addDays(today, -365);
+    const amounts = (state.transactions || [])
+      .filter(t => t.type === 'expense' && t.date >= since && t.date <= today && merchantKey(t.label) === key)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 3)
+      .map(t => cents(t.amount));
+    if (!amounts.length) return null;
+    return dollars(amounts.reduce((s, a) => s + a, 0) / amounts.length);
+  }
   function cashFlow(state,start,end,accountId='all',groupBy='category') {
     if(!validDate(start)||!validDate(end)||end<start)throw Error('Choose a valid date range.');
     if(!['category','merchant'].includes(groupBy))throw Error('Choose a valid grouping.');
@@ -652,7 +680,7 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
