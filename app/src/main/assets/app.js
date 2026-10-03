@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.21.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.22.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -477,7 +477,7 @@ function flowDiagram(r) {
  const table=(items,title)=>`<table class="flow-values"><caption>${title}</caption><thead><tr><th scope="col">Group</th><th scope="col">Amount</th></tr></thead><tbody>${rows(items)}</tbody><tfoot><tr><th scope="row">Total</th><td>${cash(flow.totalCents)}</td></tr></tfoot></table>`;
  return `<section class="sankey" aria-label="Cash flow Sankey"><div class="flow-summary"><span>${flow.gapCents?'Spending exceeds income':'Income left after spending'}</span><strong class="${flow.gapCents?'danger':'positive'}">${cash(flow.gapCents||flow.savedCents)} ${flow.gapCents?'gap':'saved'}</strong></div>${graphic}<p class="small flow-scroll-hint">Swipe the diagram to see all labels, or open the exact values below.</p><p class="small">${flow.gapCents?'Funding gap is spending above recorded income. It does not identify borrowing or where the extra money came from.':'Saved means recorded income minus expenses, not a transfer to a savings account or your safe-to-spend amount.'} Transfers are excluded.</p><p class="small">Groups below 3% of their income or expense total are combined into Other. Up to five named income groups and six spending groups are shown; remaining groups join Other.</p><details class="chart-data flow-data"><summary>View exact amounts and Other details</summary><div class="flow-tables">${table(incoming,'Income and funding')}${table(outgoing,'Spending and saved')}</div></details></section>`;
 }
-function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection();}
+function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection()+spendingTrendsSection()+monthOverMonthSection();}
 let merchantMonths = 12;
 // Top merchants (roadmap #63): ranked by total spend with a period filter.
 function topMerchantsSection() {
@@ -487,6 +487,27 @@ function topMerchantsSection() {
   if (!rows.length) return `<section class="section card"><h2 class="section-title">Top merchants</h2>${form}<p class="empty">No spending in this period yet.</p></section>`;
   const max = rows[0].total;
   return `<section class="section card"><h2 class="section-title">Top merchants</h2>${form}<div class="table-scroll"><table><thead><tr><th>Merchant</th><th>Spent</th><th>Share</th><th>Transactions</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.label)}</b></td><td>${money(r.total)}</td><td><div class="bar"><span style="width:${Math.round(C.cents(r.total)/C.cents(max)*100)}%"></span></div></td><td>${r.count}</td></tr>`).join('')}</tbody></table></div></section>`;
+}
+// Spending trends (roadmap #59): 12-month per-category totals.
+function spendingTrendsSection() {
+  const data = C.spendingTrends(state, 12);
+  const cats = [...new Set(data.flatMap(d => Object.keys(d.categories)))].sort();
+  if (!cats.length) return '';
+  const totals = Object.fromEntries(cats.map(c => [c, data.reduce((s, d) => s + C.cents(d.categories[c] || 0), 0)]));
+  const top = cats.sort((a, b) => totals[b] - totals[a]).slice(0, 8);
+  const max = Math.max(...data.map(d => top.reduce((s, c) => s + C.cents(d.categories[c] || 0), 0)), 1);
+  return `<section class="section card"><h2 class="section-title">Spending trends</h2><p class="small">Monthly totals for your top ${top.length} categories over the last 12 months.</p><div class="table-scroll"><table><thead><tr><th>Month</th>${top.map(c => `<th>${esc(c)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${data.map(d => {
+    const total = top.reduce((s, c) => s + C.cents(d.categories[c] || 0), 0);
+    return `<tr><td>${d.month}</td>${top.map(c => `<td>${d.categories[c] ? money(d.categories[c]) : '—'}</td>`).join('')}<td><b>${money(total / 100)}</b><div class="bar"><span style="width:${Math.round(total / max * 100)}%"></span></div></td></tr>`;
+  }).join('')}</tbody></table></div></section>`;
+}
+// Month-over-month insights (roadmap #60): where spending rose or fell.
+function monthOverMonthSection() {
+  const m = C.monthOverMonth(state);
+  if (!m.rows.length) return '';
+  const up = m.rows.filter(r => r.change > 0).slice(0, 5), down = m.rows.filter(r => r.change < 0).slice(0, 5);
+  const row = r => `<tr><td><b>${esc(r.category)}</b></td><td>${money(r.previous)}</td><td>${money(r.current)}</td><td class="${r.change > 0 ? 'danger' : 'positive'}">${r.change > 0 ? '+' : ''}${money(r.change)} (${r.pct > 0 ? '+' : ''}${r.pct}%)</td></tr>`;
+  return `<section class="section card"><h2 class="section-title">Month over month</h2><p class="small">${m.prev} → ${m.cur}: where your spending changed the most.</p>${up.length ? `<h3 class="subsection">Biggest increases</h3><div class="table-scroll"><table><thead><tr><th>Category</th><th>${m.prev}</th><th>${m.cur}</th><th>Change</th></tr></thead><tbody>${up.map(row).join('')}</tbody></table></div>` : ''}${down.length ? `<h3 class="subsection">Biggest decreases</h3><div class="table-scroll"><table><thead><tr><th>Category</th><th>${m.prev}</th><th>${m.cur}</th><th>Change</th></tr></thead><tbody>${down.map(row).join('')}</tbody></table></div>` : ''}${!up.length && !down.length ? '<p class="empty">No change between the last two months.</p>' : ''}</section>`;
 }
 // Savings rate (roadmap #68): percent of income saved per month with trend.
 function savingsRateSection() {

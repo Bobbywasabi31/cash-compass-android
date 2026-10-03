@@ -618,6 +618,49 @@
     });
     return Object.values(byMerchant).sort((a, b) => cents(b.total) - cents(a.total)).slice(0, limit);
   }
+  // Spending trends (roadmap #59): per-category expense totals for each of
+  // the last N months.
+  function spendingTrends(state, monthsBack = 12) {
+    monthsBack = Math.max(2, Math.min(60, Math.round(number(monthsBack, 1))));
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const out = [];
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      out.push({ month: new Date(Date.UTC(y, m - 1 - i, 1)).toISOString().slice(0, 7), categories: {} });
+    }
+    const byMonth = Object.fromEntries(out.map(o => [o.month, o]));
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const row = byMonth[t.date.slice(0, 7)];
+      if (!row) return;
+      const cat = t.category || 'Other';
+      row.categories[cat] = dollars(cents(row.categories[cat] || 0) + cents(t.amount));
+    });
+    return out;
+  }
+  // Month-over-month insights (roadmap #60): where spending rose or fell
+  // versus last month, ranked by dollar change.
+  function monthOverMonth(state) {
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const cur = new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 7);
+    const prev = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
+    const totals = { [cur]: {}, [prev]: {} };
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const bucket = totals[t.date.slice(0, 7)];
+      if (!bucket) return;
+      const cat = t.category || 'Other';
+      bucket[cat] = dollars(cents(bucket[cat] || 0) + cents(t.amount));
+    });
+    const cats = new Set([...Object.keys(totals[cur]), ...Object.keys(totals[prev])]);
+    return { cur, prev, rows: [...cats].map(cat => {
+      const current = totals[cur][cat] || 0, previous = totals[prev][cat] || 0;
+      const changeCents = cents(current) - cents(previous);
+      return { category: cat, current, previous, change: dollars(changeCents),
+        pct: previous > 0 ? Math.round(changeCents / cents(previous) * 1000) / 10 : (current > 0 ? 100 : 0) };
+    }).sort((a, b) => Math.abs(cents(b.change)) - Math.abs(cents(a.change))) };
+  }
   // Savings rate (roadmap #68): percent of income saved per month with trend.
   function savingsRate(state, monthsBack = 12) {
     const rows = monthlyTotals(state, localDate(), monthsBack).map(r => {
@@ -1145,6 +1188,7 @@
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
+  spendingTrends, monthOverMonth,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

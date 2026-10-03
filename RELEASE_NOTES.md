@@ -1,3 +1,8 @@
+# Cash Compass 1.22.0 preview
+
+- **Spending trends (roadmap #59):** Reports → Spending trends shows per-category totals for each of the last 12 months, with your top 8 categories and monthly totals.
+- **Month-over-month insights (roadmap #60):** Reports → Month over month explains where spending rose or fell versus last month, ranked by dollar change with percentages.
+
 # Cash Compass 1.21.0 preview
 
 - **Top merchants (roadmap #63):** Reports → Top merchants ranks spending by merchant over the last 3, 6, or 12 months, with share bars and transaction counts. Merchant names are normalized so variants group together.

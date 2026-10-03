@@ -620,3 +620,31 @@ test('savings rate computes per-month and overall percentages',()=>{
  assert.equal(r.overall,7.5);
  assert.equal(C.savingsRate(C.blank(),12).overall,null);
 });
+
+test('spending trends track per-category monthly totals',()=>{
+ const s=C.blank();
+ const add=(cat,amount,month)=>{s.transactions.push({id:'t'+cat+month+amount,label:cat,amount,date:month+'-15',type:'expense',category:cat,accountId:'cash'});};
+ add('Food',100,'2026-08');add('Food',150,'2026-09');add('Transport',50,'2026-09');
+ const t=C.spendingTrends(s,3);
+ assert.equal(t.length,3);
+ const aug=t.find(x=>x.month==='2026-08'), sep=t.find(x=>x.month==='2026-09');
+ assert.equal(aug.categories.Food,100);
+ assert.equal(sep.categories.Food,150);
+ assert.equal(sep.categories.Transport,50);
+ assert.equal(C.spendingTrends(C.blank(),3).every(x=>Object.keys(x.categories).length===0),true);
+});
+
+test('month-over-month ranks category changes',()=>{
+ const s=C.blank();
+ const add=(cat,amount,month)=>{s.transactions.push({id:'m'+cat+month,label:cat,amount,date:month+'-15',type:'expense',category:cat,accountId:'cash'});};
+ add('Food',100,'2026-09');add('Food',200,'2026-10');add('Transport',80,'2026-09');add('Transport',80,'2026-10');
+ const m=C.monthOverMonth(s);
+ assert.equal(m.cur,'2026-10');
+ assert.equal(m.prev,'2026-09');
+ const food=m.rows.find(r=>r.category==='Food');
+ assert.equal(food.change,100);
+ assert.equal(food.pct,100);
+ const transport=m.rows.find(r=>r.category==='Transport');
+ assert.equal(transport.change,0);
+ assert.equal(C.monthOverMonth(C.blank()).rows.length,0);
+});
