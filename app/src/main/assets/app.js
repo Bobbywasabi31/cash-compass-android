@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.15.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.16.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -13,12 +13,41 @@ try {
 } catch (e) { storageError = 'Saved data could not be read. Your original data has been kept. Restore a valid backup from You to continue.'; storageBlocked = true; }
 C.ensureAccounts(state);
 const app = document.getElementById('app');
+// Automatic backups + data-loss guards (roadmap #6, #9): rotating slots in
+// localStorage, written before destructive actions and once daily. Never
+// throws — a failed backup must not block the action it guards.
+const AUTO_KEY = 'cash-compass-auto', AUTO_SLOTS = 5;
+let lastAutoCheck = 0;
+function autoBackups() {
+  try {
+    const meta = JSON.parse(localStorage.getItem(AUTO_KEY + '-meta') || '{"slots":[]}');
+    return Array.isArray(meta.slots) ? meta.slots : [];
+  } catch (e) { return []; }
+}
+function autoBackup(reason) {
+  try {
+    const data = localStorage.getItem(STORE);
+    if (!data) return;
+    const slots = autoBackups();
+    if (slots.length >= AUTO_SLOTS) { try { localStorage.removeItem(AUTO_KEY + '-' + slots[slots.length - 1].id); } catch (e) {} }
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    localStorage.setItem(AUTO_KEY + '-' + id, data);
+    localStorage.setItem(AUTO_KEY + '-meta', JSON.stringify({ slots: [{ id, when: new Date().toISOString(), reason }, ...slots].slice(0, AUTO_SLOTS) }));
+  } catch (e) {}
+}
+function maybeDailyBackup() {
+  if (Date.now() - lastAutoCheck < 3600 * 1000) return;
+  lastAutoCheck = Date.now();
+  const day = 24 * 3600 * 1000;
+  if (!autoBackups().some(s => s.reason === 'daily' && Date.now() - new Date(s.when).getTime() < day)) autoBackup('daily');
+}
 function persist(next, recovery = false) {
   if (storageBlocked && !recovery) throw Error(storageError);
   C.ensureAccounts(next); C.syncBalance(next); C.snapshot(next);
   try { localStorage.setItem(STORE, JSON.stringify(next)); }
   catch (e) { throw Error('Could not save to this device. No changes were applied. Copy your backup from You before closing.'); }
   state = next; storageError = ''; storageBlocked = false; syncReminders();
+  maybeDailyBackup();
 }
 function update(fn) { const next = JSON.parse(JSON.stringify(state)); fn(next); persist(next); reply = ''; }
 function flash(text) { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 4500); }
@@ -121,11 +150,16 @@ function answer(q) {
 function coach() {
   return header('Your cash-flow coach', 'Offline explanations calculated from your entries.') + `<section class="card chat"><p class="small">This preview uses a rules-based coach, not a connected AI model.</p><div class="bubble" aria-live="polite">${esc(reply || 'Ask about your spending window, bills, or a change in working hours.')}</div><div class="suggestions">${['What can I spend?', 'Which bills are due?', 'What if I work 12 fewer hours?', 'Tax set-aside'].map(q => `<button class="suggestion" data-prompt="${q}">${q}</button>`).join('')}</div><form id="coachForm" class="chat-form"><input name="message" aria-label="Ask about your cash flow" placeholder="Ask about your plan" maxlength="400" required><button class="send" aria-label="Send">↑</button></form><p class="disclaimer">Budgeting estimates from your entries, not investment or tax advice.</p></section>`;
 }
+// Automatic backups (roadmap #6): rotating local slots with one-tap restore.
+function autoBackupSection() {
+  const slots = autoBackups();
+  return `<section class="section card profile-card"><h2 class="section-title">Automatic backups</h2><p class="small">Saved automatically before restores, resets, and sample data — plus once daily. Last ${AUTO_SLOTS} kept, newest first.</p>${slots.length ? slots.map(s => `<div class="report-row"><div class="entry-head"><span>${esc(s.reason)}</span><b>${new Date(s.when).toLocaleString()}</b></div><div class="row-actions"><button class="secondary" data-action="restore-auto" data-slot="${s.id}">Restore this backup</button></div></div>`).join('') : '<p class="empty">No automatic backups yet.</p>'}</section>`;
+}
 function profile() {
   const p = state.profile;
   return header('Make it yours.', 'Update your cash whenever you spend or receive money.') + `<section class="card profile-card"><form id="profileForm" class="form-grid">${field('name', 'Your name', p.name, 'text', 'maxlength="80"')}${amountField('balance', 'Net account balance (edit accounts separately)', p.balance, -1000000000).replace('<input','<input readonly')}${amountField('buffer', 'Everyday safety buffer', p.buffer)}${amountField('taxHeld', 'Taxes already reserved within that cash', p.taxHeld)}${amountField('hourlyRate', 'Gross hourly rate for scenarios', p.hourlyRate)}${field('taxRate', 'Your chosen tax / scenario deduction (%)', p.taxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Enter take-home income after payroll deductions. For gross freelance income, this percentage reserves tax. For hourly scenarios, use your estimated deduction rate.</p>${field('sideTaxRate', 'Side-income tax set-aside rate (%)', p.sideTaxRate == null ? 25 : p.sideTaxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Untaxed freelance/gig income is tracked separately in Reports; this rate sets the quarterly set-aside target.</p><label class="check-label"><input type="checkbox" name="taxReminder"${p.taxReminder ? ' checked' : ''}> Remind me about quarterly estimated-tax deadlines</label><button class="primary">Save settings</button></form></section>
     <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p></section>
-    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">Cash Compass ${APP_VERSION} preview · USD</p></section>`;
+    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">Cash Compass ${APP_VERSION} preview · USD</p></section>${autoBackupSection()}`;
 }
 function modal() {
   if (!dialog) return '';
@@ -146,10 +180,10 @@ function modal() {
     body = `<p>${esc(x.label)} · ${money(x.amount)}</p><p class="small">Choose whether this payment is already reflected in the cash balance you entered.</p><div class="form-grid"><button class="primary" data-confirm="adjust">${kind === 'incomes' ? 'Add to cash and mark received' : 'Subtract from cash and mark paid'}</button><button class="secondary" data-confirm="included">Already in my cash balance</button></div>`;
   } else if (dialog.mode === 'backup') {
     title = 'Backup / restore';
-    body = `<p class="small">Copy all text and save it somewhere private. Wallet review text may contain purchase details. Restoring pauses capture and clears unprocessed native notifications. To restore, paste a Cash Compass backup and tap Restore. Restoring replaces this plan.</p><form id="restoreForm" class="form-grid"><label>Backup JSON<textarea name="backup" spellcheck="false" required>${esc(JSON.stringify(state, null, 2))}</textarea></label><button class="secondary" type="button" data-action="select-backup">Select all for copying</button><button class="primary">Restore this backup</button></form>`;
+    body = `<p class="small">Copy all text and save it somewhere private. Wallet review text may contain purchase details. Restoring pauses capture and clears unprocessed native notifications. To restore, paste a Cash Compass backup and tap Restore. Restoring replaces this plan — an automatic backup is saved first.</p><form id="restoreForm" class="form-grid"><label>Backup JSON<textarea name="backup" spellcheck="false" required>${esc(JSON.stringify(state, null, 2))}</textarea></label><button class="secondary" type="button" data-action="select-backup">Select all for copying</button><button class="primary">Restore this backup</button></form>`;
   } else {
     title = 'Confirm change';
-    body = `<p>${dialog.mode === 'remove' ? `${kind === 'holdings' ? 'Remove this holding from your portfolio and net worth?' : kind === 'lifeEvents' ? 'Remove this scenario event?' : kind === 'transactions' ? 'Delete '+esc(x.label)+'? This reverses its original cash and tax adjustments. Any settled schedule stays advanced.' : 'Remove '+esc(x.label || x.category)+'? This does not change cash. Repeating entries stop after removal.'}` : dialog.mode === 'demo' ? 'Replace this plan with sample data? Copy a backup first if you need to keep your entries.' : dialog.mode === 'clear-memory' ? 'Forget all remembered merchants? Category and account suggestions start over; your transactions stay unchanged.' : 'Clear your plan and start with no entries? Copy a backup first if you need to keep them.'}</p><button class="primary" data-confirm="yes">${dialog.mode === 'remove' ? 'Remove entry' : dialog.mode === 'clear-memory' ? 'Clear merchant memory' : 'Replace plan'}</button>`;
+    body = `<p>${dialog.mode === 'remove' ? `${kind === 'holdings' ? 'Remove this holding from your portfolio and net worth?' : kind === 'lifeEvents' ? 'Remove this scenario event?' : kind === 'transactions' ? 'Delete '+esc(x.label)+'? This reverses its original cash and tax adjustments. Any settled schedule stays advanced.' : 'Remove '+esc(x.label || x.category)+'? This does not change cash. Repeating entries stop after removal.'}` : dialog.mode === 'demo' ? 'Replace this plan with sample data? An automatic backup of your current plan is saved first — restore it anytime from You → Automatic backups.' : dialog.mode === 'clear-memory' ? 'Forget all remembered merchants? Category and account suggestions start over; your transactions stay unchanged.' : dialog.mode === 'restore-auto' ? 'Restore this automatic backup? Your current plan is backed up first, so nothing is lost.' : 'Clear your plan and start with no entries? An automatic backup is saved first — restore it anytime from You → Automatic backups.'}</p><button class="primary" data-confirm="yes">${dialog.mode === 'remove' ? 'Remove entry' : dialog.mode === 'clear-memory' ? 'Clear merchant memory' : dialog.mode === 'restore-auto' ? 'Restore backup' : 'Replace plan'}</button>`;
   }
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><div class="modal-head"><h2 id="dialogTitle">${title}</h2><button class="close" data-action="close" aria-label="Close dialog">×</button></div>${body}<p id="formError" role="alert" class="danger small"></p></section></div>`;
 }
@@ -194,11 +228,13 @@ document.addEventListener('click', e => {
     else if (b.dataset.action === 'close') dialog = null;
     else if (b.dataset.action === 'select-backup') { app.querySelector('textarea').select(); flash('Selected. Touch and hold to copy.'); return; }
     else if (['fresh', 'demo', 'backup', 'clear-memory'].includes(b.dataset.action)) dialog = { mode: b.dataset.action };
+    else if (b.dataset.action === 'restore-auto') { dialog = { mode: 'restore-auto', id: b.dataset.slot }; }
     else if (b.dataset.confirm && dialog) {
       if (dialog.mode === 'settle') update(next => C.settle(next, dialog.kind, dialog.item.id, b.dataset.confirm === 'adjust'));
       else if (dialog.mode === 'remove') update(next => { if(dialog.kind==='accounts'){C.removeAccount(next,dialog.item.id);return;} if (dialog.kind === 'transactions') { C.removeTransaction(next,dialog.item.id); return; } next[dialog.kind] = next[dialog.kind].filter(x => x.id !== dialog.item.id); });
-      else if (dialog.mode === 'fresh') { pauseWallet(); persist(C.blank()); pauseWallet(true); tab = 'profile'; }
-      else if (dialog.mode === 'demo') {pauseWallet();persist(C.demo());pauseWallet(true);}
+      else if (dialog.mode === 'fresh') { autoBackup('before clear'); pauseWallet(); persist(C.blank()); pauseWallet(true); tab = 'profile'; }
+      else if (dialog.mode === 'demo') { autoBackup('before sample data'); pauseWallet();persist(C.demo());pauseWallet(true);}
+      else if (dialog.mode === 'restore-auto') { const raw = localStorage.getItem(AUTO_KEY + '-' + dialog.id); if (!raw) throw Error('Automatic backup not found.'); autoBackup('before auto-restore'); pauseWallet(); persist(C.normalize(JSON.parse(raw)), true); pauseWallet(true); tab = 'profile'; }
       else if (dialog.mode === 'clear-memory') { update(next => C.clearMerchantMemory(next)); }
       dialog = null; reply = ''; flash('Plan saved');
     } else return;
@@ -249,7 +285,7 @@ document.addEventListener('submit', e => {
     else if (e.target.id === 'runwayForm') { runwayIncome = f.get('income'); runwaySpending = f.get('spending'); }
     else if (e.target.id === 'emergencyForm') { runwaySpending = f.get('spending'); emergencyMonths = f.get('months'); }
     else if (e.target.id === 'coachForm') reply = answer(f.get('message').trim());
-    else if (e.target.id === 'restoreForm') { const restored=C.normalize(JSON.parse(f.get('backup')));pauseWallet();persist(restored, true);pauseWallet(true); dialog = null; reply = ''; flash('Backup restored'); }
+    else if (e.target.id === 'restoreForm') { autoBackup('before restore'); const restored=C.normalize(JSON.parse(f.get('backup')));pauseWallet();persist(restored, true);pauseWallet(true); dialog = null; reply = ''; flash('Backup restored'); }
     render();
   } catch (error) { const el = document.getElementById('formError'); if (el) el.textContent = error.message; else flash(error.message); }
 });

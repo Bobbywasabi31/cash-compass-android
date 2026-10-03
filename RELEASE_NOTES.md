@@ -1,3 +1,8 @@
+# Cash Compass 1.16.0 preview
+
+- **Automatic backups (roadmap #6):** your plan is now backed up automatically — before every restore, reset, or sample-data load, plus once daily. The last 5 are kept in You → Automatic backups with one-tap restore; each shows when and why it was taken.
+- **Data-loss guards (roadmap #9):** destructive confirmations now state exactly what happens and that an automatic backup is saved first. Restoring an automatic backup backs up the current plan before replacing it, so a restore can itself be undone.
+
 # Cash Compass 1.15.0 preview
 
 - **Auto-detect transfers on import (roadmap #32):** the CSV preview now spots expense/income row pairs for the same amount across different accounts within 3 days and offers to import each pair as a single transfer instead of two transactions. Pairs are ticked by default and can be unticked individually; duplicate-skipping still applies.
