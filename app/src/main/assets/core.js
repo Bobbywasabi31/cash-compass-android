@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -69,6 +69,12 @@
     const txIdMap = new Map(list(raw.transactions).map((x,i) => [x && x.id, 'transactions-' + i]));
     result.transactions.forEach(t => { if (t.refundOf) t.refundOf = txIdMap.get(t.refundOf) || ''; });
     result.budgets = list(raw.budgets).map((x,i) => budget({...x, id: 'budgets-' + i}));
+    // Budget moves (roadmap #44): mid-month reallocation history.
+    result.budgetMoves = list(raw.budgetMoves).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid budget move.');
+      if (!validDate(x.date)) throw Error('Invalid budget move date.');
+      return { id: 'move-' + i, date: x.date, from: label(x.from), to: label(x.to), amount: number(x.amount, 0.01) };
+    });
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
     if(new Set(result.accounts.map(a=>a.id)).size!==result.accounts.length || new Set(result.accounts.map(a=>a.label.toLowerCase())).size!==result.accounts.length)throw Error('Account identifiers and names must be unique.');
@@ -1289,7 +1295,23 @@
     });
     return { matched, missed };
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  // Move money between budget categories (roadmap #44): reallocate
+  // budget amounts mid-month with visible history.
+  function moveBudget(state, fromCategory, toCategory, amount) {
+    amount = number(amount, 0.01);
+    fromCategory = label(fromCategory); toCategory = label(toCategory);
+    if (fromCategory.toLowerCase() === toCategory.toLowerCase()) throw Error('Choose two different categories.');
+    const from = state.budgets.find(b => b.category.toLowerCase() === fromCategory.toLowerCase() && b.bucket !== 'income');
+    const to = state.budgets.find(b => b.category.toLowerCase() === toCategory.toLowerCase() && b.bucket !== 'income');
+    if (!from || !to) throw Error('Both categories need budgets.');
+    if (cents(from.amount) < cents(amount)) throw Error(`${from.category} only has ${from.amount} budgeted.`);
+    from.amount = dollars(cents(from.amount) - cents(amount));
+    to.amount = dollars(cents(to.amount) + cents(amount));
+    state.budgetMoves = state.budgetMoves || [];
+    state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
+    return state;
+  }
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

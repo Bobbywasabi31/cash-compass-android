@@ -717,3 +717,28 @@ test('applyReconciliation merges matches and routes misses to inbox',()=>{
  assert.equal(s.wallet.inbox[0].reason,'Missed by notifications — from CSV import.');
  assert.equal(s.wallet.inbox[0].title,'Shell');
 });
+
+test('moveBudget reallocates between categories with history',()=>{
+ const s=C.blank();
+ s.budgets.push({id:'b1',category:'Food',amount:500,bucket:'spending',start:'2026-01',rollover:false});
+ s.budgets.push({id:'b2',category:'Transport',amount:300,bucket:'spending',start:'2026-01',rollover:false});
+ C.moveBudget(s,'Food','Transport',100);
+ assert.equal(s.budgets.find(b=>b.category==='Food').amount,400);
+ assert.equal(s.budgets.find(b=>b.category==='Transport').amount,400);
+ assert.equal(s.budgetMoves.length,1);
+ assert.equal(s.budgetMoves[0].from,'Food');
+ assert.equal(s.budgetMoves[0].to,'Transport');
+ assert.equal(s.budgetMoves[0].amount,100);
+ assert.throws(()=>C.moveBudget(s,'Food','Transport',1000));
+ assert.throws(()=>C.moveBudget(s,'Food','Food',10));
+ assert.throws(()=>C.moveBudget(s,'Food','Nonexistent',10));
+});
+
+test('budgetMoves normalize with validation',()=>{
+ const s=C.blank();
+ s.budgetMoves.push({date:'2026-10-01',from:'Food',to:'Transport',amount:50});
+ const n=C.normalize(s);
+ assert.equal(n.budgetMoves.length,1);
+ assert.equal(n.budgetMoves[0].amount,50);
+ assert.throws(()=>{const b=C.blank();b.budgetMoves.push({date:'bad',from:'A',to:'B',amount:10});C.normalize(b);});
+});

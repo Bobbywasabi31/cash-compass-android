@@ -1,3 +1,8 @@
+# Cash Compass 1.25.0 preview
+
+- **Undo for bulk edits and deletes (roadmap #42):** bulk category changes and the new bulk delete offer a 60-second undo. An Undo button appears in Transactions after the operation.
+- **Move money between budget categories (roadmap #44):** Budgets → Move reallocates planned amounts mid-month. A Budget moves history table shows every reallocation.
+
 # Cash Compass 1.24.0 preview
 
 - **CSV + notification merge/reconcile (roadmap #4):** when importing CSV, rows are matched against the notification inbox by amount, then date within ±3 days, then fuzzy merchant. Matched rows merge (CSV wins on amount/name; your existing category preserved). Unmatched rows go to the inbox as "missed by notifications" for review. The preview shows match/miss counts.
