@@ -308,7 +308,10 @@
     const note = String(x.note || '').trim().slice(0, 280);
     // Refund linking (roadmap #36): an income can point at the expense it refunds.
     const refundOf = typeof x.refundOf === 'string' ? x.refundOf.trim().slice(0, 80) : '';
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf};
+    // Reimbursable tracking (roadmap #37): expenses you expect to be paid back.
+    const reimbursable = x.reimbursable === true && x.type === 'expense';
+    const reimbursed = reimbursable ? number(x.reimbursed || 0, 0, amount) : 0;
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf, reimbursable, reimbursed};
   }
   function saveTransaction(state, input) {
     const t = transaction(input);
@@ -433,6 +436,35 @@
   // Refund linking (roadmap #36): find the original purchase a refund points at.
   function refundTarget(state, t) {
     return (state.transactions || []).find(x => x.id === t.refundOf) || null;
+  }
+  // Emergency fund tracker (roadmap #25): months of essential spending
+  // covered by spendable cash — the same pool runway() draws on.
+  function emergencyFund(state, monthlyEssential, targetMonths = 3) {
+    monthlyEssential = number(monthlyEssential, 0);
+    targetMonths = number(targetMonths, 1, 60);
+    const cash = dollars(Math.max(0, cents(state.profile.balance) - reservesCents(state)));
+    const target = dollars(cents(monthlyEssential) * targetMonths);
+    const monthsCovered = monthlyEssential > 0 ? cash / monthlyEssential : 0;
+    return { cash, monthlyEssential, targetMonths, target, monthsCovered,
+      funded: monthlyEssential > 0 && monthsCovered >= targetMonths,
+      gap: dollars(Math.max(0, cents(target) - cents(cash))) };
+  }
+  // Reimbursable tracking (roadmap #37): what's still owed on expenses
+  // marked reimbursable. Pure tracking — the actual payback deposit is
+  // recorded as income separately.
+  function reimbursableSummary(state) {
+    const items = (state.transactions || [])
+      .filter(t => t.type === 'expense' && t.reimbursable)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const total = items.reduce((s, t) => s + cents(t.amount), 0);
+    const reimbursed = items.reduce((s, t) => s + cents(t.reimbursed || 0), 0);
+    return { items, count: items.length, total: dollars(total), reimbursed: dollars(reimbursed), owed: dollars(total - reimbursed) };
+  }
+  function markReimbursed(state, id, amount) {
+    const t = (state.transactions || []).find(x => x.id === id);
+    if (!t || t.type !== 'expense' || !t.reimbursable) throw Error('Reimbursable expense not found.');
+    t.reimbursed = dollars(Math.min(cents(t.amount), Math.max(0, cents(number(amount)))));
+    return t;
   }
   // Merchant-to-category memory (roadmap #3): remember the category and account
   // used for each merchant so future transactions can pre-fill them. Learned
@@ -905,7 +937,8 @@
   }
 
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
-  makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
+  emergencyFund, reimbursableSummary, markReimbursed, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;

@@ -1,3 +1,8 @@
+# Cash Compass 1.14.0 preview
+
+- **Emergency fund tracker (roadmap #25):** a new section beside the low-season runway shows how many months of essential spending your spendable cash covers — with a progress bar toward your target (default 3 months) and the amount still needed. It uses the same cash pool as the runway and shares its essential-spending figure, so the two stay in sync.
+- **Reimbursable tracking (roadmap #37):** tick “Reimbursable” on any expense you expect to be paid back. Activity → “Reimbursements” shows the reimbursable total, what's been paid back, and what's still owed, with per-expense logging that supports partial paybacks. Logging is pure tracking; record the actual deposit as income separately.
+
 # Cash Compass 1.13.1 preview
 
 - **Critical fix:** restored the `syncReminders()` function accidentally dropped in the 1.11.0 edit. Without it, every save threw an error after writing data — dialogs stayed open and follow-on actions (such as enabling wallet capture) never ran. All saves now complete cleanly, and the Android smoke test passes again.

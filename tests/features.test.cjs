@@ -353,3 +353,52 @@ test('refund linking nets against category in budgets and reports',()=>{
  assert.equal(r2.refundOf,s2.transactions.find(t=>t.label==='Store').id);
  assert.equal(C.budgetSummary(s2,'2026-10').rows[0].spent,60);
 });
+
+test('emergency fund reports months covered of a target',()=>{
+ const s=C.blank();
+ s.profile.balance=9000;
+ const f=C.emergencyFund(s,3000,3);
+ assert.equal(f.cash,9000);
+ assert.equal(f.target,9000);
+ assert.equal(f.monthsCovered,3);
+ assert.equal(f.funded,true);
+ assert.equal(f.gap,0);
+ const g=C.emergencyFund(s,3000,6);
+ assert.equal(g.funded,false);
+ assert.equal(g.gap,9000);
+ assert.equal(g.monthsCovered,3);
+ // Reserves reduce the spendable pool.
+ s.goals.push({id:'g',label:'Trip',target:2000,saved:500,monthly:0,contributions:[]});
+ const h=C.emergencyFund(s,3000,3);
+ assert(h.cash<9000);
+ assert.throws(()=>C.emergencyFund(s,100,0));
+ assert.throws(()=>C.emergencyFund(s,100,61));
+});
+
+test('reimbursable tracking sums owed and logs paybacks',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ C.saveTransaction(s,{id:'a',label:'Flight',type:'expense',amount:400,date:'2026-09-18',category:'Travel',accountId:'checking',reimbursable:true});
+ C.saveTransaction(s,{id:'b',label:'Hotel',type:'expense',amount:200,date:'2026-09-19',category:'Travel',accountId:'checking',reimbursable:true});
+ C.saveTransaction(s,{id:'c',label:'Lunch',type:'expense',amount:20,date:'2026-09-19',category:'Dining',accountId:'checking'});
+ let r=C.reimbursableSummary(s);
+ assert.equal(r.count,2);
+ assert.equal(r.total,600);
+ assert.equal(r.owed,600);
+ C.markReimbursed(s,'a',150);
+ r=C.reimbursableSummary(s);
+ assert.equal(r.reimbursed,150);
+ assert.equal(r.owed,450);
+ // Logging is capped at the expense amount.
+ C.markReimbursed(s,'b',9999);
+ assert.equal(s.transactions.find(t=>t.id==='b').reimbursed,200);
+ assert.equal(C.reimbursableSummary(s).owed,250);
+ // Income can't be reimbursable; unknown ids fail.
+ assert.throws(()=>C.markReimbursed(s,'nope',10));
+ C.saveTransaction(s,{id:'d',label:'Pay',type:'income',amount:50,date:'2026-09-20',accountId:'checking',reimbursable:true});
+ assert.equal(s.transactions.find(t=>t.id==='d').reimbursable,false);
+ // Round trip preserves flags.
+ const s2=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.equal(s2.transactions.find(t=>t.label==='Flight').reimbursed,150);
+ assert.equal(C.reimbursableSummary(s2).owed,250);
+});

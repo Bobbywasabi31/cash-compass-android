@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.13.1-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.14.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.14.0: Emergency fund and reimbursable tracking
+
+- **Emergency fund tracker** (roadmap #25): a new section beside the low-season runway shows how many months of essential spending your spendable cash covers, with a progress bar toward your target (default 3 months) and the amount still needed to get there. It draws on the same cash pool as the runway and shares its essential-spending figure.
+- **Reimbursable tracking** (roadmap #37): tick “Reimbursable” on any expense you expect to be paid back. Activity → “Reimbursements” shows the total, what’s been paid back, and what’s still owed, with per-expense logging (partial paybacks supported). Logging is pure tracking — record the actual deposit as income separately.
 
 ## New in 1.13.1: Critical save fix
 
