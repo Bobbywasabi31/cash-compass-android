@@ -1148,3 +1148,26 @@ test('transaction stores receipt',()=>{
  const tx2=C.transaction({id:'t2',label:'Test',amount:50,date:'2026-09-15',type:'expense',category:'Food',receipt:'x'.repeat(3000000)});
  assert.equal(tx2.receipt,'');
 });
+
+test('performance: 10k transactions filter/sort',()=>{
+ const s=C.blank();
+ // Generate 10k transactions
+ for(let i=0;i<10000;i++){
+   s.transactions.push(C.transaction({
+     id:'t'+i, label:'Merchant '+i, amount:(i%500)+0.99,
+     date:'2026-'+String((i%12)+1).padStart(2,'0')+'-15',
+     type:i%10===0?'income':'expense',
+     category:['Food','Transport','Shopping'][i%3]
+   }));
+ }
+ const start=Date.now();
+ // Simulate transactionRows filter+sort
+ const filtered=s.transactions.filter(t=>t.type==='expense'&&t.category==='Food');
+ filtered.sort((a,b)=>b.date.localeCompare(a.date));
+ const elapsed=Date.now()-start;
+ assert.ok(elapsed<1000, 'Filter/sort took '+elapsed+'ms, expected <1000ms');
+ assert.ok(filtered.length>0);
+ // Pagination slice is cheap
+ const page=filtered.slice(0,100);
+ assert.equal(page.length,100);
+});
