@@ -10,8 +10,8 @@ This is a debug-signed testing preview. Copy a backup from **You → Backup / re
 
 ## New in 1.20.0: Overtime, holiday pay, and gig income variability
 
-- **Overtime and holiday pay** (roadmap #17): the paycheck estimator now accepts overtime hours (paid at 1.5×) and holiday hours (paid at 2×), with a per-component breakdown and take-home total that can be added as planned income.
-- **Gig income variability** (roadmap #18): Plan → Gig income variability shows your worst/best recorded months, average, and a 0–100 consistency score (100 = perfectly steady).
+- **Overtime and holiday pay:** the paycheck estimator now accepts overtime hours (paid at 1.5×) and holiday hours (paid at 2×), with a per-component breakdown and take-home total that can be added as planned income.
+- **Gig income variability:** Plan → Gig income variability shows your worst/best recorded months, average, and a 0–100 consistency score (100 = perfectly steady).
 
 ## New in 1.19.0: Income streams and per-bill reminders
 
