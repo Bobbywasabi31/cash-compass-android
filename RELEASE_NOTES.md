@@ -1,3 +1,7 @@
+# Cash Compass 1.13.1 preview
+
+- **Critical fix:** restored the `syncReminders()` function accidentally dropped in the 1.11.0 edit. Without it, every save threw an error after writing data — dialogs stayed open and follow-on actions (such as enabling wallet capture) never ran. All saves now complete cleanly, and the Android smoke test passes again.
+
 # Cash Compass 1.13.0 preview
 
 - **Rules engine (roadmap #30):** Activity → “Rules” — build “if the merchant name contains X, set category or add tag Y” automations. Rules run top to bottom on new transactions: the first match sets the category when none is set, every match adds its tag. Each rule shows a live match count, with “Apply to existing” to recategorize past transactions in one tap.

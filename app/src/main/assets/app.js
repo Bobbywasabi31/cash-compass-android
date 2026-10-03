@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.13.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.13.1';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -319,6 +319,8 @@ function extendedModal(kind,x,today) {
     return{title:'Transaction rules',body:`<p class="small">“If the merchant name contains this text, set the category or add the tag.” Rules run top to bottom on new transactions that don't have a category yet — the first match sets the category, every match adds its tag. “Apply to existing” recategorizes past matches.</p>${state.rules.length?state.rules.map(r=>{const n=C.previewRule(state,r).length;return `<div class="report-row"><div class="entry-head"><span>Contains “${esc(r.match)}”</span><b>${n} match${n===1?'':'es'}</b></div><p class="small">→ ${r.category?esc(r.category):'no category change'}${r.tag?' · adds tag #'+esc(r.tag):''}</p><div class="row-actions"><button class="secondary" data-action="rule-apply" data-rule="${r.id}">Apply to existing</button><button class="quiet" data-action="rule-delete" data-rule="${r.id}">Delete</button></div></div>`;}).join(''):'<p class="empty">No rules yet. Add your first below.</p>'}<form id="ruleForm" class="form-grid"><h3 class="section-title">New rule</h3>${field('match','Merchant text to match','','text','maxlength="80"')}${field('category','Set category','','text','maxlength="80" list="categories"').replace(' required','')}${field('tag','Add tag','','text','maxlength="30"').replace(' required','')}<p class="small">Set a category, a tag, or both. Matching ignores case and payment-processor noise like “SQ *”.</p><button class="primary">Add rule</button></form>`};
   }
   return null;
+}
+function syncReminders() {
   if(!hasNative())return;
   try {NativeBridge.syncBills(JSON.stringify({enabled:state.reminders===true,bills:state.bills.map(b=>({date:b.date,repeat:b.repeat||'none',anchorDay:b.anchorDay||Number(b.date.slice(8))}))}));}catch(e){flash('Could not update phone reminders. Open You and try again.');}
 }
