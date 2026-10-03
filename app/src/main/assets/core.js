@@ -53,6 +53,12 @@
           out.category = label(item.category || (kind === 'bills' ? 'Other' : 'Income'));
           out.date = item.date; out.amount = number(item.amount, 0.01); out.gross = kind === 'incomes' && item.gross === true;
           out.estimate = kind === 'bills' && item.estimate === true;
+          // Per-bill reminder settings (roadmap #27): which bills notify and how many days ahead.
+          out.reminder = kind !== 'bills' || item.reminder !== false;
+          out.reminderDays = kind === 'bills' ? number(item.reminderDays == null ? 3 : item.reminderDays, 0, 60) : 0;
+          // Multiple income streams (roadmap #19): hours and rate per stream.
+          out.hours = kind === 'incomes' ? number(item.hours || 0, 0, 1000) : 0;
+          out.hourlyRate = kind === 'incomes' ? number(item.hourlyRate || 0, 0) : 0;
         }
         return out;
       });
@@ -550,6 +556,29 @@
       return { category: b.category, bucket: b.bucket, periodBudget, rollover, spent, available, remaining: dollars(cents(available) - cents(spent)) };
     });
     return { cycle, period, prev, rows };
+  }
+  // Multiple income streams (roadmap #19): group expected income by source
+  // over the coming months; each stream tracks hours and rate, and the
+  // summary shows combined and per-stream monthly equivalents.
+  function incomeStreams(state, monthsAhead = 12) {
+    monthsAhead = Math.max(1, Math.min(60, Math.round(number(monthsAhead, 1))));
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const endDate = new Date(Date.UTC(y, m - 1 + monthsAhead, 0)).toISOString().slice(0, 10);
+    const byLabel = {};
+    expand(state.incomes || [], endDate).forEach(x => {
+      if (x.date < today) return;
+      const key = x.label.toLowerCase();
+      if (!byLabel[key]) byLabel[key] = { label: x.label, amount: 0, paydays: 0, nextDate: x.date, hours: x.hours || 0, hourlyRate: x.hourlyRate || 0 };
+      const s = byLabel[key];
+      s.amount = dollars(cents(s.amount) + cents(x.amount));
+      s.paydays++;
+      if (x.date < s.nextDate) s.nextDate = x.date;
+    });
+    const rows = Object.values(byLabel).sort((a, b) => cents(b.amount) - cents(a.amount));
+    rows.forEach(r => { r.monthly = dollars(Math.round(cents(r.amount) / monthsAhead)); });
+    const combined = dollars(rows.reduce((sum, r) => sum + cents(r.amount), 0));
+    return { rows, combined, monthly: dollars(Math.round(cents(combined) / monthsAhead)), monthsAhead };
   }
   // Tax set-aside tracker (roadmap #23): untaxed side income, the set-aside
   // target at the user's rate, what's reserved via tax reserves, and the
@@ -1066,7 +1095,7 @@
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, budgetAlerts, payPeriod, periodSpent,
-  payPeriodBudget, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;

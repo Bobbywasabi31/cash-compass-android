@@ -1,3 +1,8 @@
+# Cash Compass 1.19.0 preview
+
+- **Multiple income streams (roadmap #19):** income entries now track optional hours and hourly rate per stream. Plan → Income streams groups expected income by source over the next 12 months — paydays, next payday, expected total, and per-stream plus combined monthly equivalents.
+- **Per-bill reminder settings (roadmap #27):** each bill has its own phone-reminder toggle and days-ahead setting (0–60, default 3) in the bill editor. The Android daily reminder check honors each bill's window; bills with reminders off are excluded. Existing bills keep the previous 3-day behavior.
+
 # Cash Compass 1.18.0 preview
 
 - **Pay-period budgets (roadmap #14):** Budget → Weekly / Bi-weekly tabs. Monthly budgets are split into 52/26 periods (weeks start Monday; bi-weekly anchored to Mon 2020-01-06). Unspent amounts roll forward into the current period for categories with rollover enabled.

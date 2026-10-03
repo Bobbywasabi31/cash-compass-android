@@ -137,15 +137,18 @@ public class MainActivity extends Activity {
         @android.webkit.JavascriptInterface public void syncBills(String json) {
             try {
                 org.json.JSONObject input = new org.json.JSONObject(json);
-                org.json.JSONArray bills = input.getJSONArray("bills"), dates = new org.json.JSONArray();
+                org.json.JSONArray bills = input.getJSONArray("bills"), out = new org.json.JSONArray();
                 if (bills.length() > 10000) throw new IllegalArgumentException();
                 for (int i = 0; i < bills.length(); i++) {
-                    String date = bills.getJSONObject(i).getString("date");
+                    org.json.JSONObject b = bills.getJSONObject(i);
+                    String date = b.getString("date");
                     if (!date.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) throw new IllegalArgumentException();
-                    dates.put(date);
+                    int days = b.optInt("reminderDays", 3);
+                    if (days < 0 || days > 60) days = 3;
+                    out.put(new org.json.JSONObject().put("date", date).put("days", days));
                 }
                 getSharedPreferences("reminders", MODE_PRIVATE).edit().putBoolean("enabled", input.optBoolean("enabled"))
-                    .putString("dates", dates.toString()).apply();
+                    .putString("bills", out.toString()).remove("dates").apply();
                 BillReminder.schedule(MainActivity.this);
             } catch (Exception e) { callback("cashCompassNotice", "Could not update bill reminders."); }
         }

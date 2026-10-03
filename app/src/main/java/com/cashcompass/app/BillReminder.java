@@ -15,7 +15,7 @@ import java.util.Calendar;
 import java.util.Locale;
 import org.json.JSONArray;
 
-/** One inexact daily check; stores dates only, never merchant names or amounts. */
+/** One inexact daily check; stores due dates and reminder windows only, never merchant names or amounts. */
 public class BillReminder extends BroadcastReceiver {
     private static final String CHECK = "com.cashcompass.app.CHECK_BILLS";
     private static final String CHANNEL = "bill-reminders";
@@ -35,10 +35,23 @@ public class BillReminder extends BroadcastReceiver {
         if (next.getTimeInMillis() <= System.currentTimeMillis()) next.add(Calendar.DAY_OF_YEAR, 1);
         manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.getTimeInMillis(), alarm(context));
     }
-    static int dueCount(String json, String through) {
+    static int dueCount(String json) {
         try {
-            JSONArray dates = new JSONArray(json); int count = 0;
-            for (int i = 0; i < dates.length(); i++) if (dates.getString(i).compareTo(through) <= 0) count++;
+            JSONArray arr = new JSONArray(json); int count = 0;
+            SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            for (int i = 0; i < arr.length(); i++) {
+                String date; int days = 3;
+                Object o = arr.get(i);
+                if (o instanceof org.json.JSONObject) {
+                    org.json.JSONObject b = (org.json.JSONObject) o;
+                    date = b.getString("date"); days = b.optInt("days", 3);
+                } else {
+                    date = arr.getString(i);
+                }
+                if (days < 0 || days > 60) days = 3;
+                Calendar through = Calendar.getInstance(); through.add(Calendar.DAY_OF_YEAR, days);
+                if (date.compareTo(fmt.format(through.getTime())) <= 0) count++;
+            }
             return count;
         } catch (org.json.JSONException e) { return 0; }
     }
@@ -47,8 +60,9 @@ public class BillReminder extends BroadcastReceiver {
         if (!CHECK.equals(intent.getAction())) return;
         SharedPreferences prefs = context.getSharedPreferences("reminders", Context.MODE_PRIVATE);
         if (!prefs.getBoolean("enabled", false)) return;
-        Calendar through = Calendar.getInstance(); through.add(Calendar.DAY_OF_YEAR, 3);
-        int count = dueCount(prefs.getString("dates", "[]"), new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(through.getTime()));
+        String stored = prefs.getString("bills", null);
+        if (stored == null) stored = prefs.getString("dates", "[]");
+        int count = dueCount(stored);
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (count == 0) { manager.cancel(17); return; }
         if (!manager.areNotificationsEnabled()) return;

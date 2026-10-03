@@ -32,7 +32,13 @@ public class AppSmokeTest {
         assertEquals("true", js("document.querySelector('[name=name]').value='Android test'; document.querySelector('#profileForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).profile.name==='Android test'"));
         assertEquals("true", js("document.querySelector('[data-tab=accounts]').click(); document.querySelector('[data-edit]').click(); document.querySelector('[name=balance]').value='250.50'; document.querySelector('#accountForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); JSON.parse(localStorage.getItem('cash-compass-v2')).profile.balance===250.5"));
         assertEquals("true", js("typeof NativeBridge.notificationsAllowed()==='boolean'"));
-        assertEquals(2, BillReminder.dueCount("[\"2026-09-01\",\"2026-09-21\",\"2026-10-01\"]", "2026-09-21"));
+        java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        java.util.Calendar cc = java.util.Calendar.getInstance();
+        String today = df.format(cc.getTime());
+        cc.add(java.util.Calendar.DAY_OF_YEAR, 5); String in5 = df.format(cc.getTime());
+        assertEquals(1, BillReminder.dueCount("[{\"date\":\"" + today + "\",\"days\":0},{\"date\":\"" + in5 + "\",\"days\":0}]"));
+        assertEquals(2, BillReminder.dueCount("[{\"date\":\"" + today + "\",\"days\":0},{\"date\":\"" + in5 + "\",\"days\":7}]"));
+        assertEquals(1, BillReminder.dueCount("[\"" + today + "\",\"" + in5 + "\"]"));
         for (String tab : new String[]{"investments", "forecasting", "cashflow", "profile", "reports", "plan", "transactions", "budgets", "profile", "goals", "profile", "coach", "home"}) {
             assertEquals("true", js("document.querySelector('[data-tab=" + tab + "]').click(); !!document.querySelector('h1')"));
         }

@@ -528,3 +528,35 @@ test('pay-period budgets slice monthly and roll unspent forward',()=>{
  assert.equal(bw.start,'2026-10-05');
  assert.equal(bw.end,'2026-10-18');
 });
+
+test('income streams group by source with hours, rate, and monthly equivalents',()=>{
+ const s=C.blank();
+ const today=C.localDate(), ym=today.slice(0,7);
+ const mk=(label,amount,date,hours,hourlyRate)=>({id:'i-'+label,label,amount,date,repeat:'monthly',category:'Income',accountId:'cash',anchorDay:Number(date.slice(8)),hours,hourlyRate});
+ s.incomes.push(mk('Day job',3000,ym+'-15',160,25), mk('Gig work',800,ym+'-20',20,40));
+ const r=C.incomeStreams(s,12);
+ assert.equal(r.rows.length,2);
+ const job=r.rows.find(x=>x.label==='Day job');
+ assert.equal(job.hours,160);
+ assert.equal(job.hourlyRate,25);
+ assert.equal(job.paydays,12);
+ assert.equal(job.amount,36000);
+ assert.equal(job.monthly,3000);
+ const gig=r.rows.find(x=>x.label==='Gig work');
+ assert.equal(gig.monthly,800);
+ assert.equal(r.combined,45600);
+ assert.equal(r.monthly,3800);
+ assert.equal(C.incomeStreams(C.blank(),12).rows.length,0);
+});
+
+test('bill reminder settings normalize with safe defaults',()=>{
+ const norm=bills=>{const s=C.blank();s.bills=bills;return C.normalize(s).bills;};
+ const withOpts=norm([{label:'Rent',amount:1200,date:'2026-10-01',repeat:'monthly',category:'Housing',reminder:false,reminderDays:7}])[0];
+ assert.equal(withOpts.reminder,false);
+ assert.equal(withOpts.reminderDays,7);
+ const def=norm([{label:'Power',amount:90,date:'2026-10-01',repeat:'monthly',category:'Utilities'}])[0];
+ assert.equal(def.reminder,true);
+ assert.equal(def.reminderDays,3);
+ assert.throws(()=>norm([{label:'X',amount:10,date:'2026-10-01',repeat:'none',category:'Other',reminderDays:999}]));
+ assert.throws(()=>norm([{label:'X',amount:10,date:'2026-10-01',repeat:'none',category:'Other',reminderDays:-1}]));
+});
