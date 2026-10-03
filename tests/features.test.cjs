@@ -975,3 +975,15 @@ test('explainNumber provides calculation steps',()=>{
  assert.ok(r.steps.length>0);
  assert.equal(C.explainNumber(s,'unknown'),null);
 });
+
+test('suggestCategory suggests based on history',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Chipotle Mexican Grill',amount:15,date:'2026-09-01',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Chipotle',amount:12,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const sug=C.suggestCategory(s,'chipotle burrito');
+ assert.ok(sug);
+ assert.equal(sug.category,'Food');
+ assert.ok(sug.confidence>0);
+ assert.equal(C.suggestCategory(s,'xyzunknown'),null);
+ assert.equal(C.suggestCategory(s,''),null);
+});

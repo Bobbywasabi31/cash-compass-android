@@ -1,3 +1,8 @@
+# Cash Compass 1.36.0 preview
+
+- **Connected AI coach (roadmap #78):** Optional BYO API key in Profile; summarized data only.
+- **Smart categorization (roadmap #79):** Category suggestions with confidence when adding transactions.
+
 # Cash Compass 1.35.0 preview
 
 - **Voice entry (roadmap #75):** Microphone button in Transactions; speak then confirm.

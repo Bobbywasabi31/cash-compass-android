@@ -85,7 +85,29 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+  function suggestCategory(state, label) {
+    label = String(label || '').toLowerCase().trim();
+    if (!label) return null;
+    const scores = {};
+    (state.transactions || []).forEach(t => {
+      if (!t.label || !t.category) return;
+      const words = t.label.toLowerCase().split(/\s+/);
+      let match = 0;
+      label.split(/\s+/).forEach(w => {
+        if (w.length > 2 && words.some(tw => tw.includes(w) || w.includes(tw))) match++;
+      });
+      if (match > 0) {
+        scores[t.category] = (scores[t.category] || 0) + match;
+      }
+    });
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    const total = sorted.reduce((s, [, v]) => s + v, 0);
+    const [category, score] = sorted[0];
+    return { category, confidence: Math.min(95, Math.round(score / total * 100)) };
+  }
+  // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
   function parseQuickEntry(text) {
     text = String(text || '').trim();
     if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
@@ -345,7 +367,29 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+  function suggestCategory(state, label) {
+    label = String(label || '').toLowerCase().trim();
+    if (!label) return null;
+    const scores = {};
+    (state.transactions || []).forEach(t => {
+      if (!t.label || !t.category) return;
+      const words = t.label.toLowerCase().split(/\s+/);
+      let match = 0;
+      label.split(/\s+/).forEach(w => {
+        if (w.length > 2 && words.some(tw => tw.includes(w) || w.includes(tw))) match++;
+      });
+      if (match > 0) {
+        scores[t.category] = (scores[t.category] || 0) + match;
+      }
+    });
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    const total = sorted.reduce((s, [, v]) => s + v, 0);
+    const [category, score] = sorted[0];
+    return { category, confidence: Math.min(95, Math.round(score / total * 100)) };
+  }
+  // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
   function parseQuickEntry(text) {
     text = String(text || '').trim();
     if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
@@ -531,7 +575,29 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
+    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+  function suggestCategory(state, label) {
+    label = String(label || '').toLowerCase().trim();
+    if (!label) return null;
+    const scores = {};
+    (state.transactions || []).forEach(t => {
+      if (!t.label || !t.category) return;
+      const words = t.label.toLowerCase().split(/\s+/);
+      let match = 0;
+      label.split(/\s+/).forEach(w => {
+        if (w.length > 2 && words.some(tw => tw.includes(w) || w.includes(tw))) match++;
+      });
+      if (match > 0) {
+        scores[t.category] = (scores[t.category] || 0) + match;
+      }
+    });
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    const total = sorted.reduce((s, [, v]) => s + v, 0);
+    const [category, score] = sorted[0];
+    return { category, confidence: Math.min(95, Math.round(score / total * 100)) };
+  }
+  // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
   function parseQuickEntry(text) {
     text = String(text || '').trim();
     if (!text) throw Error('Type an amount and description, like "12.50 chipotle".');
@@ -1300,6 +1366,28 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+  function suggestCategory(state, label) {
+    label = String(label || '').toLowerCase().trim();
+    if (!label) return null;
+    const scores = {};
+    (state.transactions || []).forEach(t => {
+      if (!t.label || !t.category) return;
+      const words = t.label.toLowerCase().split(/\s+/);
+      let match = 0;
+      label.split(/\s+/).forEach(w => {
+        if (w.length > 2 && words.some(tw => tw.includes(w) || w.includes(tw))) match++;
+      });
+      if (match > 0) {
+        scores[t.category] = (scores[t.category] || 0) + match;
+      }
+    });
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (!sorted.length) return null;
+    const total = sorted.reduce((s, [, v]) => s + v, 0);
+    const [category, score] = sorted[0];
+    return { category, confidence: Math.min(95, Math.round(score / total * 100)) };
   }
   // Natural-language quick entry (roadmap #74): parse "12.50 chipotle".
   function parseQuickEntry(text) {
@@ -2306,7 +2394,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
