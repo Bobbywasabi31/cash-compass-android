@@ -85,5 +85,9 @@ public class AppSmokeTest {
         assertEquals("true", js("document.querySelector('[data-wallet-review]').click(); document.querySelector('#walletReviewForm [name=category]').value='Dining';" +
             "document.querySelector('#walletReviewForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); state.wallet.inbox.length===1 && state.demo && !JSON.parse(NativeBridge.walletStatus()).enabled"));
         assertEquals("true", js("CashCore.normalize(JSON.parse(localStorage.getItem('cash-compass-v2'))).holdings.length===3 && state.balanceHistory.length===12 && state.lifeEvents.length===3"));
+        // Quick-add and receipt attachments (roadmap #10, #35).
+        assertEquals("true", js("document.querySelector('[data-tab=home]').click(); document.querySelector('[data-action=quick-add]').click(); !!document.querySelector('#quickAddForm')"));
+        assertEquals("true", js("document.querySelector('#quickAddForm [name=amount]').value='12.50'; document.querySelector('.quick-cat[data-cat=Food]').click(); state.transactions.some(t=>t.category==='Food' && t.amount===12.50)"));
+        assertEquals("true", js("const tx=CashCore.transaction({id:'rt1',label:'Receipt test',amount:9.99,date:CashCore.localDate(),type:'expense',category:'Food',receipt:'data:image/png;base64,iVBORw0KGgo='}); tx.receipt==='data:image/png;base64,iVBORw0KGgo=' && CashCore.transaction({id:'rt2',label:'Too big',amount:1,date:CashCore.localDate(),type:'expense',category:'Food',receipt:'x'.repeat(3000000)}).receipt===''"));
     }
 }

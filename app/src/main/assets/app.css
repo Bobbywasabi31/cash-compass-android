@@ -149,3 +149,10 @@ input,select,textarea{font-size:16px} /* prevents iOS zoom */
 html{font-size:100%}
 @media (max-width:360px){html{font-size:95%}}
 body{line-height:1.5}
+
+/* Quick-add (roadmap #10) */
+.quick-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.quick-cat{padding:16px 8px;border:2px solid var(--line);border-radius:12px;background:white;font-weight:600}
+.quick-cat.selected{border-color:var(--pine);background:var(--mint)}
+.receipt-thumb{font-size:18px;padding:4px}
+.receipt-preview{margin:8px 0}

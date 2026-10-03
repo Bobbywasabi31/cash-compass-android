@@ -1125,3 +1125,26 @@ test('refreshPrices updates holdings',()=>{
  assert.equal(count, 1);
  assert.equal(s.holdings[0].price, 160);
 });
+
+test('quickAdd creates minimal transaction',()=>{
+ const s=C.blank();
+ s.accounts.push({id:'cash',label:'Cash',type:'cash',balance:1000});
+ const tx=C.quickAdd(s,25.50,'Food');
+ assert.equal(tx.amount,25.50);
+ assert.equal(tx.category,'Food');
+ assert.equal(tx.type,'expense');
+ assert.equal(s.transactions.length,1);
+ assert.throws(()=>C.quickAdd(s,0,'Food'));
+ // Empty category defaults to Other
+ const tx2=C.quickAdd(s,5,'');
+ assert.equal(tx2.category,'Other');
+});
+
+test('transaction stores receipt',()=>{
+ const s=C.blank();
+ const tx=C.transaction({id:'t1',label:'Test',amount:50,date:'2026-09-15',type:'expense',category:'Food',receipt:'data:image/jpeg;base64,abc123'});
+ assert.equal(tx.receipt,'data:image/jpeg;base64,abc123');
+ // Too large rejected
+ const tx2=C.transaction({id:'t2',label:'Test',amount:50,date:'2026-09-15',type:'expense',category:'Food',receipt:'x'.repeat(3000000)});
+ assert.equal(tx2.receipt,'');
+});

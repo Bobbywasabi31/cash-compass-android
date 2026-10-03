@@ -1689,7 +1689,27 @@
     const reimbursed = reimbursable ? number(x.reimbursed || 0, 0, amount) : 0;
     // Tax set-aside tracker (roadmap #23): untaxed side income.
     const untaxed = x.untaxed === true && x.type === 'income';
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf, reimbursable, reimbursed, untaxed};
+    // Receipt photo attachments (roadmap #35): store locally with transaction.
+    let receipt = '';
+    if (typeof x.receipt === 'string' && x.receipt.length > 0 && x.receipt.length <= 2800000) {
+      receipt = x.receipt.slice(0, 2800000);
+    }
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, receipt, refundOf, reimbursable, reimbursed, untaxed};
+  }
+  // Quick-add for cash purchases (roadmap #10): minimal amount + category.
+  // Two taps: enter amount, pick category. Defaults to today, cash account.
+  function quickAdd(state, amount, category) {
+    amount = number(amount, 0.01);
+    category = label(category || 'Other');
+    if (!category) throw Error('Pick a category.');
+    const accountId = (state.accounts[0] || {}).id || 'cash';
+    const tx = transaction({
+      id: 'tx-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      label: category, amount, date: localDate(), type: 'expense',
+      category, accountId,
+    });
+    state.transactions.push(tx);
+    return tx;
   }
   function saveTransaction(state, input) {
     const t = transaction(input);
@@ -3294,7 +3314,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { quickAdd, walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
