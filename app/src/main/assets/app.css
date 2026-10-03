@@ -129,3 +129,23 @@ button:active{transform:scale(.98)}
 @media (prefers-reduced-motion:reduce){
  *{animation:none!important;transition:none!important}
 }
+
+/* Accessibility pass (roadmap #81): focus, touch targets, contrast */
+button{min-height:44px;min-width:44px}
+input,select,textarea{font-size:16px} /* prevents iOS zoom */
+:focus-visible{outline:3px solid #007f9b;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+[role="button"]{cursor:pointer}
+/* High contrast text */
+.danger{color:#a83e2e}
+.positive{color:#1a6b4a}
+@media (prefers-contrast:more){
+ :root{--ink:#000;--muted:#333}
+ .danger{color:#900}
+ .positive{color:#060}
+}
+
+/* Font scaling support */
+html{font-size:100%}
+@media (max-width:360px){html{font-size:95%}}
+body{line-height:1.5}

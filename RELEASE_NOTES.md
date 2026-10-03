@@ -1,3 +1,7 @@
+# Cash Compass 1.47.0 preview
+
+- **Accessibility (roadmap #81):** Touch targets, focus, contrast, font scaling.
+
 # Cash Compass 1.46.0 preview
 
 - **Animations (roadmap #91):** Subtle transitions; reduced-motion support.
