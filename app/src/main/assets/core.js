@@ -85,7 +85,50 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Year-in-review (roadmap #61): annual summary.
+    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+  function spendHeatmap(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const days = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense' || t.date.slice(0, 7) !== month) return;
+      days[t.date] = dollars(cents(days[t.date] || 0) + cents(t.amount));
+    });
+    const max = Math.max(1, ...Object.values(days).map(v => cents(v)));
+    return { month, days, max: dollars(max),
+      intensity: Object.fromEntries(Object.entries(days).map(([d, v]) => [d, Math.round(cents(v) / max * 100)])) };
+  }
+  // Projected daily balance calendar (roadmap #65): forecast balance by day.
+  function dailyBalanceForecast(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const start = month + '-01';
+    const end = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10);
+    let balance = state.profile.balance;
+    // Apply past transactions up to start
+    (state.transactions || []).forEach(t => {
+      if (t.date >= start) return;
+      if (t.type === 'income') balance = dollars(cents(balance) + cents(t.amount));
+      else if (t.type === 'expense') balance = dollars(cents(balance) - cents(t.amount));
+    });
+    const days = {};
+    const bills = expand(state.bills || [], end);
+    const incomes = expand(state.incomes || [], end);
+    let d = start;
+    while (d <= end) {
+      let dayBalance = balance;
+      (state.transactions || []).forEach(t => {
+        if (t.date !== d) return;
+        if (t.type === 'income') dayBalance = dollars(cents(dayBalance) + cents(t.amount));
+        else if (t.type === 'expense') dayBalance = dollars(cents(dayBalance) - cents(t.amount));
+      });
+      bills.forEach(b => { if (b.date === d) dayBalance = dollars(cents(dayBalance) - cents(b.amount)); });
+      incomes.forEach(i => { if (i.date === d) dayBalance = dollars(cents(dayBalance) + cents(i.amount)); });
+      days[d] = dayBalance;
+      balance = dayBalance;
+      d = addDays(d, 1);
+    }
+    return { month, days };
+  }
+  // Year-in-review (roadmap #61): annual summary.
   function yearInReview(state, year) {
     year = String(year || localDate().slice(0, 4));
     if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
@@ -226,7 +269,50 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Year-in-review (roadmap #61): annual summary.
+    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+  function spendHeatmap(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const days = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense' || t.date.slice(0, 7) !== month) return;
+      days[t.date] = dollars(cents(days[t.date] || 0) + cents(t.amount));
+    });
+    const max = Math.max(1, ...Object.values(days).map(v => cents(v)));
+    return { month, days, max: dollars(max),
+      intensity: Object.fromEntries(Object.entries(days).map(([d, v]) => [d, Math.round(cents(v) / max * 100)])) };
+  }
+  // Projected daily balance calendar (roadmap #65): forecast balance by day.
+  function dailyBalanceForecast(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const start = month + '-01';
+    const end = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10);
+    let balance = state.profile.balance;
+    // Apply past transactions up to start
+    (state.transactions || []).forEach(t => {
+      if (t.date >= start) return;
+      if (t.type === 'income') balance = dollars(cents(balance) + cents(t.amount));
+      else if (t.type === 'expense') balance = dollars(cents(balance) - cents(t.amount));
+    });
+    const days = {};
+    const bills = expand(state.bills || [], end);
+    const incomes = expand(state.incomes || [], end);
+    let d = start;
+    while (d <= end) {
+      let dayBalance = balance;
+      (state.transactions || []).forEach(t => {
+        if (t.date !== d) return;
+        if (t.type === 'income') dayBalance = dollars(cents(dayBalance) + cents(t.amount));
+        else if (t.type === 'expense') dayBalance = dollars(cents(dayBalance) - cents(t.amount));
+      });
+      bills.forEach(b => { if (b.date === d) dayBalance = dollars(cents(dayBalance) - cents(b.amount)); });
+      incomes.forEach(i => { if (i.date === d) dayBalance = dollars(cents(dayBalance) + cents(i.amount)); });
+      days[d] = dayBalance;
+      balance = dayBalance;
+      d = addDays(d, 1);
+    }
+    return { month, days };
+  }
+  // Year-in-review (roadmap #61): annual summary.
   function yearInReview(state, year) {
     year = String(year || localDate().slice(0, 4));
     if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
@@ -293,7 +379,50 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Year-in-review (roadmap #61): annual summary.
+    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+  function spendHeatmap(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const days = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense' || t.date.slice(0, 7) !== month) return;
+      days[t.date] = dollars(cents(days[t.date] || 0) + cents(t.amount));
+    });
+    const max = Math.max(1, ...Object.values(days).map(v => cents(v)));
+    return { month, days, max: dollars(max),
+      intensity: Object.fromEntries(Object.entries(days).map(([d, v]) => [d, Math.round(cents(v) / max * 100)])) };
+  }
+  // Projected daily balance calendar (roadmap #65): forecast balance by day.
+  function dailyBalanceForecast(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const start = month + '-01';
+    const end = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10);
+    let balance = state.profile.balance;
+    // Apply past transactions up to start
+    (state.transactions || []).forEach(t => {
+      if (t.date >= start) return;
+      if (t.type === 'income') balance = dollars(cents(balance) + cents(t.amount));
+      else if (t.type === 'expense') balance = dollars(cents(balance) - cents(t.amount));
+    });
+    const days = {};
+    const bills = expand(state.bills || [], end);
+    const incomes = expand(state.incomes || [], end);
+    let d = start;
+    while (d <= end) {
+      let dayBalance = balance;
+      (state.transactions || []).forEach(t => {
+        if (t.date !== d) return;
+        if (t.type === 'income') dayBalance = dollars(cents(dayBalance) + cents(t.amount));
+        else if (t.type === 'expense') dayBalance = dollars(cents(dayBalance) - cents(t.amount));
+      });
+      bills.forEach(b => { if (b.date === d) dayBalance = dollars(cents(dayBalance) - cents(b.amount)); });
+      incomes.forEach(i => { if (i.date === d) dayBalance = dollars(cents(dayBalance) + cents(i.amount)); });
+      days[d] = dayBalance;
+      balance = dayBalance;
+      d = addDays(d, 1);
+    }
+    return { month, days };
+  }
+  // Year-in-review (roadmap #61): annual summary.
   function yearInReview(state, year) {
     year = String(year || localDate().slice(0, 4));
     if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
@@ -936,6 +1065,49 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Spending calendar heatmap (roadmap #64): daily spend intensity.
+  function spendHeatmap(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const days = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense' || t.date.slice(0, 7) !== month) return;
+      days[t.date] = dollars(cents(days[t.date] || 0) + cents(t.amount));
+    });
+    const max = Math.max(1, ...Object.values(days).map(v => cents(v)));
+    return { month, days, max: dollars(max),
+      intensity: Object.fromEntries(Object.entries(days).map(([d, v]) => [d, Math.round(cents(v) / max * 100)])) };
+  }
+  // Projected daily balance calendar (roadmap #65): forecast balance by day.
+  function dailyBalanceForecast(state, month) {
+    if (!validDate(month + '-01')) throw Error('Choose a valid month.');
+    const start = month + '-01';
+    const end = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10);
+    let balance = state.profile.balance;
+    // Apply past transactions up to start
+    (state.transactions || []).forEach(t => {
+      if (t.date >= start) return;
+      if (t.type === 'income') balance = dollars(cents(balance) + cents(t.amount));
+      else if (t.type === 'expense') balance = dollars(cents(balance) - cents(t.amount));
+    });
+    const days = {};
+    const bills = expand(state.bills || [], end);
+    const incomes = expand(state.incomes || [], end);
+    let d = start;
+    while (d <= end) {
+      let dayBalance = balance;
+      (state.transactions || []).forEach(t => {
+        if (t.date !== d) return;
+        if (t.type === 'income') dayBalance = dollars(cents(dayBalance) + cents(t.amount));
+        else if (t.type === 'expense') dayBalance = dollars(cents(dayBalance) - cents(t.amount));
+      });
+      bills.forEach(b => { if (b.date === d) dayBalance = dollars(cents(dayBalance) - cents(b.amount)); });
+      incomes.forEach(i => { if (i.date === d) dayBalance = dollars(cents(dayBalance) + cents(i.amount)); });
+      days[d] = dayBalance;
+      balance = dayBalance;
+      d = addDays(d, 1);
+    }
+    return { month, days };
   }
   // Year-in-review (roadmap #61): annual summary.
   function yearInReview(state, year) {
@@ -1823,7 +1995,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

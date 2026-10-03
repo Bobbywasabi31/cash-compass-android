@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.31.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.32.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -506,7 +506,7 @@ function flowDiagram(r) {
  const table=(items,title)=>`<table class="flow-values"><caption>${title}</caption><thead><tr><th scope="col">Group</th><th scope="col">Amount</th></tr></thead><tbody>${rows(items)}</tbody><tfoot><tr><th scope="row">Total</th><td>${cash(flow.totalCents)}</td></tr></tfoot></table>`;
  return `<section class="sankey" aria-label="Cash flow Sankey"><div class="flow-summary"><span>${flow.gapCents?'Spending exceeds income':'Income left after spending'}</span><strong class="${flow.gapCents?'danger':'positive'}">${cash(flow.gapCents||flow.savedCents)} ${flow.gapCents?'gap':'saved'}</strong></div>${graphic}<p class="small flow-scroll-hint">Swipe the diagram to see all labels, or open the exact values below.</p><p class="small">${flow.gapCents?'Funding gap is spending above recorded income. It does not identify borrowing or where the extra money came from.':'Saved means recorded income minus expenses, not a transfer to a savings account or your safe-to-spend amount.'} Transfers are excluded.</p><p class="small">Groups below 3% of their income or expense total are combined into Other. Up to five named income groups and six spending groups are shown; remaining groups join Other.</p><details class="chart-data flow-data"><summary>View exact amounts and Other details</summary><div class="flow-tables">${table(incoming,'Income and funding')}${table(outgoing,'Spending and saved')}</div></details></section>`;
 }
-function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection()+spendingTrendsSection()+monthOverMonthSection()+monthlyReviewSection()+yearReviewSection()+seasonalSection();}
+function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection()+spendingTrendsSection()+monthOverMonthSection()+monthlyReviewSection()+yearReviewSection()+seasonalSection()+calendarSection();}
 // Auto-drafted monthly review (roadmap #80).
 function monthlyReviewSection() {
   const r = C.monthlyReview(state);
@@ -518,7 +518,27 @@ function monthlyReviewSection() {
   if (r.bills.count) lines.push(`${r.bills.count} bill${r.bills.count === 1 ? '' : 's'} scheduled for ${r.month} totaling ${money(r.bills.total)}.`);
   return `<section class="section card"><h2 class="section-title">Monthly review</h2><p class="small">${r.month} vs ${r.prev} · drafted from your data.</p><ul class="review-lines">${lines.map(l => `<li>${l}</li>`).join('')}</ul></section>`;
 }
-let merchantMonths = 12, reviewYear = C.localDate().slice(0, 4);
+let merchantMonths = 12, reviewYear = C.localDate().slice(0, 4), calendarMonth = C.localDate().slice(0, 7);
+// Spending calendar heatmap (#64) and projected balance (#65).
+function calendarSection() {
+  const heat = C.spendHeatmap(state, calendarMonth);
+  const bal = C.dailyBalanceForecast(state, calendarMonth);
+  const form = `<form id="calendarForm" class="filter-bar">${field('month','Month',calendarMonth,'month')}<button class="quiet">View</button></form>`;
+  const [y, m] = calendarMonth.split('-').map(Number);
+  const firstDay = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) cells += '<span class="cal-empty"></span>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = calendarMonth + '-' + String(d).padStart(2, '0');
+    const spent = heat.days[date] || 0;
+    const intensity = heat.intensity[date] || 0;
+    const balance = bal.days[date];
+    const bg = spent > 0 ? `background:rgba(214,69,69,${0.1 + intensity / 100 * 0.5})` : '';
+    cells += `<span class="cal-day" style="${bg}" title="${date}: spent ${money(spent)}${balance !== undefined ? ', balance ' + money(balance) : ''}"><b>${d}</b>${spent > 0 ? `<small>${money(spent)}</small>` : ''}${balance !== undefined && balance < 0 ? '<small class="danger">low</small>' : ''}</span>`;
+  }
+  return `<section class="section card"><h2 class="section-title">Calendar</h2>${form}<p class="small">Spending intensity (red) and projected daily balance for ${calendarMonth}.</p><div class="calendar-grid"><span class="cal-head">S</span><span class="cal-head">M</span><span class="cal-head">T</span><span class="cal-head">W</span><span class="cal-head">T</span><span class="cal-head">F</span><span class="cal-head">S</span>${cells}</div></section>`;
+}
 // Year-in-review (roadmap #61).
 function yearReviewSection() {
   const y = C.yearInReview(state, reviewYear);
@@ -795,6 +815,7 @@ function redesignSubmit(id,f){
  else if(id==='detailReportForm'){C.cashFlow(state,f.get('start'),f.get('end'),f.get('account'),f.get('group'));reportStart=f.get('start');reportEnd=f.get('end');reportAccount=f.get('account');flowGroup=f.get('group');}
  else if(id==='merchantPeriodForm'){merchantMonths=C.number(f.get('months'),1,60);}
  else if(id==='yearReviewForm'){reviewYear=String(C.number(f.get('year'),2000,2100));}
+ else if(id==='calendarForm'){const m=f.get('month');if(!C.validDate(m+'-01'))throw Error('Choose a valid month.');calendarMonth=m;}
  else if(id==='saveFilterForm'){const name=C.label(f.get('name')).slice(0,40);if(!name)throw Error('Give the view a name.');update(next=>{if(next.savedFilters.length>=50)throw Error('Saved view limit reached (50). Delete one first.');next.savedFilters.push({id:'filter-'+Date.now(),name,filters:currentTxFilter()});});dialog=null;flash('View saved');}
  else if(id==='splitForm'){const parts=[];for(let i=0;i<splitCount;i++)parts.push({category:f.get('cat'+i),amount:f.get('amt'+i)});update(next=>C.splitTransaction(next,dialog.id,parts));dialog=null;splitCount=2;tab='transactions';flash('Transaction split');}
  else if(id==='ruleForm'){const rule=C.makeRule({match:f.get('match'),category:f.get('category'),tag:f.get('tag')});update(next=>{if(next.rules.length>=50)throw Error('Rule limit reached (50). Delete one first.');next.rules.push(rule);});render();flash('Rule added');}

@@ -906,3 +906,24 @@ test('seasonalView splits good and lean months',()=>{
  assert.ok(v.lean.length>0);
  assert.ok(v.good[0].net>=v.lean[0].net);
 });
+
+test('spendHeatmap calculates daily intensity',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Food',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Food',amount:50,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const h=C.spendHeatmap(s,'2026-09');
+ assert.equal(h.days['2026-09-15'],150);
+ assert.equal(h.intensity['2026-09-15'],100);
+ assert.throws(()=>C.spendHeatmap(s,'bad'));
+});
+
+test('dailyBalanceForecast projects balances',()=>{
+ const s=C.blank();
+ s.profile.balance=1000;
+ s.transactions.push({id:'t1',label:'Food',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ s.bills.push({id:'b1',label:'Rent',amount:500,date:'2026-09-20',repeat:'none',category:'Housing',accountId:'cash',anchorDay:20});
+ const f=C.dailyBalanceForecast(s,'2026-09');
+ assert.ok(f.days['2026-09-01']!==undefined);
+ assert.ok(f.days['2026-09-15']<f.days['2026-09-14']);
+ assert.ok(f.days['2026-09-20']<f.days['2026-09-19']);
+});

@@ -1,3 +1,8 @@
+# Cash Compass 1.32.0 preview
+
+- **Spending calendar heatmap (roadmap #64):** Reports → Calendar with daily spend intensity shading.
+- **Projected daily balance calendar (roadmap #65):** forecast balance per day with low-balance flags.
+
 # Cash Compass 1.31.0 preview
 
 - **Year-in-review (roadmap #61):** Reports → Year in review with annual totals, savings rate, top categories, and net worth change.
