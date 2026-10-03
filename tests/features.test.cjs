@@ -1107,3 +1107,21 @@ test('seasonCalendar shows year view',()=>{
  assert.equal(cal.months[0].income,0); // January
  assert.equal(cal.total,15000);
 });
+
+test('parseOFX parses OFX transactions',()=>{
+ const ofx = `<OFX><STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260915</DTPOSTED><TRNAMT>-25.50</TRNAMT><NAME>CHIPOTLE</NAME></STMTTRN><STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260901</DTPOSTED><TRNAMT>3000.00</TRNAMT><NAME>PAYROLL</NAME></STMTTRN></OFX>`;
+ const txs = C.parseOFX(ofx);
+ assert.equal(txs.length, 2);
+ assert.equal(txs[0].label, 'CHIPOTLE');
+ assert.equal(txs[0].type, 'expense');
+ assert.equal(txs[1].type, 'income');
+ assert.throws(()=>C.parseOFX('invalid'));
+});
+
+test('refreshPrices updates holdings',()=>{
+ const s = C.blank();
+ s.holdings.push({id:'h1',symbol:'AAPL',price:150,quantity:10});
+ const count = C.refreshPrices(s, {h1: 160});
+ assert.equal(count, 1);
+ assert.equal(s.holdings[0].price, 160);
+});

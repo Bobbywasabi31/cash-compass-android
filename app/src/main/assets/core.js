@@ -133,6 +133,56 @@
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
   }
+  // OFX/QFX/QIF import (roadmap #39): parse alongside CSV.
+  function parseOFX(text) {
+    if (typeof text !== 'string' || text.length > 2000000) throw Error('File must be smaller than 2 MB.');
+    const txs = [];
+    // OFX/QFX: <STMTTRN> blocks
+    const blocks = text.match(/<STMTTRN>.*?<\/STMTTRN>/gs) || [];
+    blocks.forEach(b => {
+      const get = tag => { const m = b.match(new RegExp(`<${tag}>([^<]+)`)); return m ? m[1].trim() : ''; };
+      const type = get('TRNTYPE'), date = get('DTPOSTED').slice(0, 8), amount = parseFloat(get('TRNAMT'));
+      const label = get('NAME') || get('MEMO') || 'OFX import';
+      if (!date || isNaN(amount)) return;
+      const ymd = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+      if (!validDate(ymd)) return;
+      txs.push({ label: label.slice(0, 80), amount: Math.abs(amount), date: ymd,
+        type: amount < 0 ? 'expense' : 'income', category: type === 'CREDIT' ? 'Income' : 'Other' });
+    });
+    // QIF: simple !Type:Bank blocks
+    if (!txs.length && text.includes('!Type:')) {
+      const entries = text.split('^');
+      entries.forEach(e => {
+        const d = (e.match(/^D(.+)$/m) || [])[1], amt = (e.match(/^T(.+)$/m) || [])[1], payee = (e.match(/^P(.+)$/m) || [])[1];
+        if (!d || !amt) return;
+        // QIF date: MM/DD/YYYY or MM/DD'YY
+        const dm = d.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (!dm) return;
+        let [_, mo, da, yr] = dm;
+        if (yr.length === 2) yr = '20' + yr;
+        const ymd = `${yr}-${mo.padStart(2,'0')}-${da.padStart(2,'0')}`;
+        if (!validDate(ymd)) return;
+        const amount = parseFloat(amt.replace(/,/g, ''));
+        if (isNaN(amount)) return;
+        txs.push({ label: (payee || 'QIF import').slice(0, 80), amount: Math.abs(amount), date: ymd,
+          type: amount < 0 ? 'expense' : 'income', category: 'Other' });
+      });
+    }
+    if (!txs.length) throw Error('No transactions found. Check the file format.');
+    return txs;
+  }
+  // Optional price refresh (roadmap #56): manual price updates.
+  function refreshPrices(state, updates) {
+    // updates: {holdingId: newPrice}
+    let count = 0;
+    (state.holdings || []).forEach(h => {
+      if (updates[h.id] !== undefined) {
+        const price = Number(updates[h.id]);
+        if (price > 0) { h.price = price; h.updated = localDate(); count++; }
+      }
+    });
+    return count;
+  }
   // Seasonal/contract income planner (roadmap #17).
   function saveSeason(state, data) {
     const seasons = state.seasons || [];
@@ -590,6 +640,56 @@
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
   }
+  // OFX/QFX/QIF import (roadmap #39): parse alongside CSV.
+  function parseOFX(text) {
+    if (typeof text !== 'string' || text.length > 2000000) throw Error('File must be smaller than 2 MB.');
+    const txs = [];
+    // OFX/QFX: <STMTTRN> blocks
+    const blocks = text.match(/<STMTTRN>.*?<\/STMTTRN>/gs) || [];
+    blocks.forEach(b => {
+      const get = tag => { const m = b.match(new RegExp(`<${tag}>([^<]+)`)); return m ? m[1].trim() : ''; };
+      const type = get('TRNTYPE'), date = get('DTPOSTED').slice(0, 8), amount = parseFloat(get('TRNAMT'));
+      const label = get('NAME') || get('MEMO') || 'OFX import';
+      if (!date || isNaN(amount)) return;
+      const ymd = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+      if (!validDate(ymd)) return;
+      txs.push({ label: label.slice(0, 80), amount: Math.abs(amount), date: ymd,
+        type: amount < 0 ? 'expense' : 'income', category: type === 'CREDIT' ? 'Income' : 'Other' });
+    });
+    // QIF: simple !Type:Bank blocks
+    if (!txs.length && text.includes('!Type:')) {
+      const entries = text.split('^');
+      entries.forEach(e => {
+        const d = (e.match(/^D(.+)$/m) || [])[1], amt = (e.match(/^T(.+)$/m) || [])[1], payee = (e.match(/^P(.+)$/m) || [])[1];
+        if (!d || !amt) return;
+        // QIF date: MM/DD/YYYY or MM/DD'YY
+        const dm = d.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (!dm) return;
+        let [_, mo, da, yr] = dm;
+        if (yr.length === 2) yr = '20' + yr;
+        const ymd = `${yr}-${mo.padStart(2,'0')}-${da.padStart(2,'0')}`;
+        if (!validDate(ymd)) return;
+        const amount = parseFloat(amt.replace(/,/g, ''));
+        if (isNaN(amount)) return;
+        txs.push({ label: (payee || 'QIF import').slice(0, 80), amount: Math.abs(amount), date: ymd,
+          type: amount < 0 ? 'expense' : 'income', category: 'Other' });
+      });
+    }
+    if (!txs.length) throw Error('No transactions found. Check the file format.');
+    return txs;
+  }
+  // Optional price refresh (roadmap #56): manual price updates.
+  function refreshPrices(state, updates) {
+    // updates: {holdingId: newPrice}
+    let count = 0;
+    (state.holdings || []).forEach(h => {
+      if (updates[h.id] !== undefined) {
+        const price = Number(updates[h.id]);
+        if (price > 0) { h.price = price; h.updated = localDate(); count++; }
+      }
+    });
+    return count;
+  }
   // Seasonal/contract income planner (roadmap #17).
   function saveSeason(state, data) {
     const seasons = state.seasons || [];
@@ -972,6 +1072,56 @@
     const monthlyInterest = remaining * (card.apr / 100 / 12);
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // OFX/QFX/QIF import (roadmap #39): parse alongside CSV.
+  function parseOFX(text) {
+    if (typeof text !== 'string' || text.length > 2000000) throw Error('File must be smaller than 2 MB.');
+    const txs = [];
+    // OFX/QFX: <STMTTRN> blocks
+    const blocks = text.match(/<STMTTRN>.*?<\/STMTTRN>/gs) || [];
+    blocks.forEach(b => {
+      const get = tag => { const m = b.match(new RegExp(`<${tag}>([^<]+)`)); return m ? m[1].trim() : ''; };
+      const type = get('TRNTYPE'), date = get('DTPOSTED').slice(0, 8), amount = parseFloat(get('TRNAMT'));
+      const label = get('NAME') || get('MEMO') || 'OFX import';
+      if (!date || isNaN(amount)) return;
+      const ymd = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+      if (!validDate(ymd)) return;
+      txs.push({ label: label.slice(0, 80), amount: Math.abs(amount), date: ymd,
+        type: amount < 0 ? 'expense' : 'income', category: type === 'CREDIT' ? 'Income' : 'Other' });
+    });
+    // QIF: simple !Type:Bank blocks
+    if (!txs.length && text.includes('!Type:')) {
+      const entries = text.split('^');
+      entries.forEach(e => {
+        const d = (e.match(/^D(.+)$/m) || [])[1], amt = (e.match(/^T(.+)$/m) || [])[1], payee = (e.match(/^P(.+)$/m) || [])[1];
+        if (!d || !amt) return;
+        // QIF date: MM/DD/YYYY or MM/DD'YY
+        const dm = d.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (!dm) return;
+        let [_, mo, da, yr] = dm;
+        if (yr.length === 2) yr = '20' + yr;
+        const ymd = `${yr}-${mo.padStart(2,'0')}-${da.padStart(2,'0')}`;
+        if (!validDate(ymd)) return;
+        const amount = parseFloat(amt.replace(/,/g, ''));
+        if (isNaN(amount)) return;
+        txs.push({ label: (payee || 'QIF import').slice(0, 80), amount: Math.abs(amount), date: ymd,
+          type: amount < 0 ? 'expense' : 'income', category: 'Other' });
+      });
+    }
+    if (!txs.length) throw Error('No transactions found. Check the file format.');
+    return txs;
+  }
+  // Optional price refresh (roadmap #56): manual price updates.
+  function refreshPrices(state, updates) {
+    // updates: {holdingId: newPrice}
+    let count = 0;
+    (state.holdings || []).forEach(h => {
+      if (updates[h.id] !== undefined) {
+        const price = Number(updates[h.id]);
+        if (price > 0) { h.price = price; h.updated = localDate(); count++; }
+      }
+    });
+    return count;
   }
   // Seasonal/contract income planner (roadmap #17).
   function saveSeason(state, data) {
@@ -1939,6 +2089,56 @@
     const monthlyInterest = remaining * (card.apr / 100 / 12);
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // OFX/QFX/QIF import (roadmap #39): parse alongside CSV.
+  function parseOFX(text) {
+    if (typeof text !== 'string' || text.length > 2000000) throw Error('File must be smaller than 2 MB.');
+    const txs = [];
+    // OFX/QFX: <STMTTRN> blocks
+    const blocks = text.match(/<STMTTRN>.*?<\/STMTTRN>/gs) || [];
+    blocks.forEach(b => {
+      const get = tag => { const m = b.match(new RegExp(`<${tag}>([^<]+)`)); return m ? m[1].trim() : ''; };
+      const type = get('TRNTYPE'), date = get('DTPOSTED').slice(0, 8), amount = parseFloat(get('TRNAMT'));
+      const label = get('NAME') || get('MEMO') || 'OFX import';
+      if (!date || isNaN(amount)) return;
+      const ymd = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+      if (!validDate(ymd)) return;
+      txs.push({ label: label.slice(0, 80), amount: Math.abs(amount), date: ymd,
+        type: amount < 0 ? 'expense' : 'income', category: type === 'CREDIT' ? 'Income' : 'Other' });
+    });
+    // QIF: simple !Type:Bank blocks
+    if (!txs.length && text.includes('!Type:')) {
+      const entries = text.split('^');
+      entries.forEach(e => {
+        const d = (e.match(/^D(.+)$/m) || [])[1], amt = (e.match(/^T(.+)$/m) || [])[1], payee = (e.match(/^P(.+)$/m) || [])[1];
+        if (!d || !amt) return;
+        // QIF date: MM/DD/YYYY or MM/DD'YY
+        const dm = d.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (!dm) return;
+        let [_, mo, da, yr] = dm;
+        if (yr.length === 2) yr = '20' + yr;
+        const ymd = `${yr}-${mo.padStart(2,'0')}-${da.padStart(2,'0')}`;
+        if (!validDate(ymd)) return;
+        const amount = parseFloat(amt.replace(/,/g, ''));
+        if (isNaN(amount)) return;
+        txs.push({ label: (payee || 'QIF import').slice(0, 80), amount: Math.abs(amount), date: ymd,
+          type: amount < 0 ? 'expense' : 'income', category: 'Other' });
+      });
+    }
+    if (!txs.length) throw Error('No transactions found. Check the file format.');
+    return txs;
+  }
+  // Optional price refresh (roadmap #56): manual price updates.
+  function refreshPrices(state, updates) {
+    // updates: {holdingId: newPrice}
+    let count = 0;
+    (state.holdings || []).forEach(h => {
+      if (updates[h.id] !== undefined) {
+        const price = Number(updates[h.id]);
+        if (price > 0) { h.price = price; h.updated = localDate(); count++; }
+      }
+    });
+    return count;
   }
   // Seasonal/contract income planner (roadmap #17).
   function saveSeason(state, data) {
@@ -3094,7 +3294,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

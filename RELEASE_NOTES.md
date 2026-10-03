@@ -1,3 +1,8 @@
+# Cash Compass 1.45.0 preview
+
+- **OFX/QFX/QIF import (roadmap #39):** Bank statement import.
+- **Price refresh (roadmap #56):** Manual holding price updates.
+
 # Cash Compass 1.44.0 preview
 
 - **Seasonal planner (roadmap #17):** Define seasons with year calendar.
