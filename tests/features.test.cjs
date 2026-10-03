@@ -302,3 +302,54 @@ test('duplicate cleanup finds and merges double-records',()=>{
  assert.equal(kept.note,'with sam');
  assert.throws(()=>C.mergeDuplicates(s,['only-one']));
 });
+
+test('rules engine auto-categorizes and tags new transactions',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ s.rules.push(C.makeRule({match:'whole foods',category:'Groceries',tag:'organic'}));
+ s.rules.push(C.makeRule({match:'foods',tag:'food'}));
+ // New uncategorized transaction: first matching rule sets category, all matches add tags.
+ C.saveTransaction(s,{id:'a',label:'WHOLE FOODS #123',type:'expense',amount:50,date:'2026-09-18',accountId:'checking'});
+ const a=s.transactions.find(t=>t.id==='a');
+ assert.equal(a.category,'Groceries');
+ assert.deepEqual(a.tags,['food','organic']);
+ // Explicit category is preserved; matching rules still add tags.
+ C.saveTransaction(s,{id:'b',label:'Whole Foods',type:'expense',amount:20,date:'2026-09-18',category:'Dining',accountId:'checking'});
+ const b=s.transactions.find(t=>t.id==='b');
+ assert.equal(b.category,'Dining');
+ assert.deepEqual(b.tags,['food','organic']);
+ // Preview counts matches; apply-to-existing forces the rule's category.
+ C.saveTransaction(s,{id:'c',label:'Whole Foods Market',type:'expense',amount:30,date:'2026-09-10',category:'Dining',accountId:'checking'});
+ const rule=s.rules[0];
+ assert.equal(C.previewRule(s,rule).length,3);
+ assert.equal(C.applyRule(s,rule.id),3);
+ assert.equal(s.transactions.find(t=>t.id==='c').category,'Groceries');
+ // Validation and round trip.
+ assert.throws(()=>C.makeRule({match:'',category:'X'}));
+ assert.throws(()=>C.makeRule({match:'x'}));
+ const s2=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.equal(s2.rules.length,2);
+ assert.equal(s2.rules[0].match,'whole foods');
+});
+
+test('refund linking nets against category in budgets and reports',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ C.saveTransaction(s,{id:'p',label:'Store',type:'expense',amount:100,date:'2026-10-05',category:'Clothing',accountId:'checking'});
+ s.budgets.push(C.budget({id:'b',category:'Clothing',amount:200,bucket:'flexible',start:'2026-10'}));
+ assert.equal(C.budgetSummary(s,'2026-10').rows[0].spent,100);
+ C.saveTransaction(s,{id:'r',label:'Store refund',type:'income',amount:40,date:'2026-10-12',category:'Clothing',accountId:'checking',refundOf:'p'});
+ assert.equal(C.budgetSummary(s,'2026-10').rows[0].spent,60);
+ const flow=C.cashFlow(s,'2026-10-01','2026-10-31','all','category');
+ assert.equal(flow.expenses.find(e=>e.label==='Clothing').amount,60);
+ assert.equal(flow.income,0);
+ assert.equal(flow.net,-60);
+ // Refund must link an existing expense and be income.
+ assert.throws(()=>C.saveTransaction(s,{id:'x',label:'X',type:'income',amount:5,date:'2026-10-12',accountId:'checking',refundOf:'nope'}));
+ assert.throws(()=>C.saveTransaction(s,{id:'y',label:'Y',type:'expense',amount:5,date:'2026-10-12',accountId:'checking',refundOf:'p'}));
+ // refundOf survives normalize (ids are rebuilt, links remapped).
+ const s2=C.normalize(JSON.parse(JSON.stringify(s)));
+ const r2=s2.transactions.find(t=>t.label==='Store refund');
+ assert.equal(r2.refundOf,s2.transactions.find(t=>t.label==='Store').id);
+ assert.equal(C.budgetSummary(s2,'2026-10').rows[0].spent,60);
+});

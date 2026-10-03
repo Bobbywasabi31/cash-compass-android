@@ -1,3 +1,8 @@
+# Cash Compass 1.13.0 preview
+
+- **Rules engine (roadmap #30):** Activity → “Rules” — build “if the merchant name contains X, set category or add tag Y” automations. Rules run top to bottom on new transactions: the first match sets the category when none is set, every match adds its tag. Each rule shows a live match count, with “Apply to existing” to recategorize past transactions in one tap.
+- **Refund linking (roadmap #36):** income transactions can link to the original purchase (“Refund for purchase,” defaulting to the purchase's category). Linked refunds net against the original's category in budgets, spending reports, and the Activity summary — a $100 purchase with a $40 refund shows as $60 of spending instead of $100 spent plus $40 income. Refund links survive backup/restore.
+
 # Cash Compass 1.12.0 preview
 
 - **Split transactions (roadmap #28):** any transaction can now be divided across categories. Open it and choose “Split across categories” — add up to 10 parts, each with its own category, that must total the original amount to the cent. The original is replaced; cash adjustments carry over per part, and tags/notes stay on the first part.

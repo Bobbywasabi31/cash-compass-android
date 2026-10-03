@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.12.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.13.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.13.0: Rules engine and refund linking
+
+- **Rules engine** (roadmap #30): Activity → “Rules” — create “if the merchant name contains X, set category or add tag Y” automations. Rules run top to bottom on new transactions: the first match sets the category when none is set, and every match adds its tag. Each rule shows a live match count with an “Apply to existing” button to recategorize past transactions.
+- **Refund linking** (roadmap #36): income transactions can now link to the original purchase via “Refund for purchase.” Linked refunds net against the original's category in budgets, spending reports, and summaries — so a $100 purchase with a $40 refund shows as $60 of spending, not $100 of spending plus $40 of income.
 
 ## New in 1.12.0: Split transactions and duplicate cleanup
 

@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -58,6 +58,10 @@
       });
     });
     result.transactions = list(raw.transactions).map((x,i) => transaction({...x, id: 'transactions-' + i}));
+    // Refund links (roadmap #36) point at transaction ids, which are rebuilt
+    // above; remap them so links survive backup/restore round trips.
+    const txIdMap = new Map(list(raw.transactions).map((x,i) => [x && x.id, 'transactions-' + i]));
+    result.transactions.forEach(t => { if (t.refundOf) t.refundOf = txIdMap.get(t.refundOf) || ''; });
     result.budgets = list(raw.budgets).map((x,i) => budget({...x, id: 'budgets-' + i}));
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
@@ -95,6 +99,13 @@
         start:q.start||'',end:q.end||''}};
     });
     result.savedFilters.forEach(f=>{if(f.filters.start&&!validDate(f.filters.start))throw Error('Invalid saved filter date.');if(f.filters.end&&!validDate(f.filters.end))throw Error('Invalid saved filter date.');});
+    // Rules engine (roadmap #30): "if merchant contains X, set category/tag Y".
+    result.rules=list(raw.rules).slice(0,50).map((r,i)=>{
+      if(!r||typeof r!=='object')throw Error('Invalid rule.');
+      const match=String(r.match||'').toLowerCase().trim().slice(0,80);
+      if(!match)throw Error('A rule needs match text.');
+      return {id:'rule-'+i,match,category:r.category?label(r.category):'',tag:String(r.tag||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,30)};
+    });
     result.wallet=walletData(raw.wallet);
     return result;
   }
@@ -295,11 +306,22 @@
     // Tags and notes (roadmap #29): free-form tags across categories.
     const tags = Array.isArray(x.tags) ? [...new Set(x.tags.map(t => String(t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30)).filter(Boolean))].slice(0, 10).sort() : [];
     const note = String(x.note || '').trim().slice(0, 280);
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note};
+    // Refund linking (roadmap #36): an income can point at the expense it refunds.
+    const refundOf = typeof x.refundOf === 'string' ? x.refundOf.trim().slice(0, 80) : '';
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf};
   }
   function saveTransaction(state, input) {
     const t = transaction(input);
     const old = state.transactions.find(x => x.id === t.id);
+    if (t.refundOf) {
+      if (t.type !== 'income') throw Error('Only income can be linked as a refund.');
+      if (t.refundOf === t.id) throw Error('A transaction cannot refund itself.');
+      const orig = state.transactions.find(x => x.id === t.refundOf);
+      if (!orig || orig.type !== 'expense') throw Error('Linked purchase not found.');
+    }
+    // Rules engine (roadmap #30): new transactions get every matching rule's
+    // tag; the first matching rule also sets the category when none is set.
+    if (!old) applyRules(state, t, false);
     t.accountId=accountById(state,t.accountId).id;
     if(old && old.walletId){t.walletId=old.walletId;t.walletRevision=t.walletRevision||old.walletRevision;}
     applyLedger(state,old,t);
@@ -369,6 +391,49 @@
     kept.note = note;
     return kept;
   }
+  // Rules engine (roadmap #30): "if merchant contains X, set category/tag Y".
+  // Rules run top to bottom. The first matching rule sets the category on
+  // uncategorized transactions; every matching rule adds its tag.
+  function makeRule(input) {
+    if (!input || typeof input !== 'object') throw Error('Invalid rule.');
+    const match = String(input.match || '').toLowerCase().trim().slice(0, 80);
+    if (!match) throw Error('Enter text to match, e.g. a merchant name.');
+    const category = input.category ? label(input.category) : '';
+    const tag = String(input.tag || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+    if (!category && !tag) throw Error('Set a category, a tag, or both.');
+    return { id: 'rule-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), match, category, tag };
+  }
+  function matchRule(rule, t) {
+    if (!rule || !rule.match || !t || t.type === 'transfer') return false;
+    return (t.label + ' ' + merchantKey(t.label)).toLowerCase().includes(rule.match);
+  }
+  function applyRules(state, t, force) {
+    const matches = (state.rules || []).filter(r => matchRule(r, t));
+    if (!matches.length) return t;
+    if ((force || t.category === 'Other' || (t.type === 'income' && t.category === 'Income')) && matches[0].category)
+      t.category = matches[0].category;
+    matches.forEach(r => { if (r.tag) t.tags = [...new Set([...(t.tags || []), r.tag])].slice(0, 10).sort(); });
+    return t;
+  }
+  function previewRule(state, rule) {
+    return (state.transactions || []).filter(t => matchRule(rule, t));
+  }
+  function applyRule(state, ruleId) {
+    const rule = (state.rules || []).find(r => r.id === ruleId);
+    if (!rule) throw Error('Rule not found.');
+    let count = 0;
+    (state.transactions || []).forEach(t => {
+      if (!matchRule(rule, t)) return;
+      if (rule.category) t.category = rule.category;
+      if (rule.tag) t.tags = [...new Set([...(t.tags || []), rule.tag])].slice(0, 10).sort();
+      count++;
+    });
+    return count;
+  }
+  // Refund linking (roadmap #36): find the original purchase a refund points at.
+  function refundTarget(state, t) {
+    return (state.transactions || []).find(x => x.id === t.refundOf) || null;
+  }
   // Merchant-to-category memory (roadmap #3): remember the category and account
   // used for each merchant so future transactions can pre-fill them. Learned
   // automatically on save; transfers are skipped because their category is structural.
@@ -421,16 +486,35 @@
   }
   function budgetSummary(state, month = localDate().slice(0,7)) {
     if (!validDate(month + '-01')) throw Error('Choose a valid month.');
-    const expenses = (state.transactions || []).filter(t => t.type === 'expense');
+    // Refund linking (roadmap #36): linked refunds net against the original
+    // purchase's category in the month the refund is recorded.
+    const refundCategory = t => { const o = refundTarget(state, t); return (o ? o.category : t.category).toLowerCase(); };
+    const netSpent = (cat, when) => {
+      let s = 0;
+      (state.transactions || []).forEach(t => {
+        if (!when(t)) return;
+        if (t.type === 'expense' && t.category.toLowerCase() === cat) s += cents(t.amount);
+        else if (t.type === 'income' && t.refundOf && refundCategory(t) === cat) s -= cents(t.amount);
+      });
+      return s;
+    };
     const rows = (state.budgets || []).filter(b => b.start <= month && b.bucket !== 'income').map(b => {
-      const matches = expenses.filter(t => t.category.toLowerCase() === b.category.toLowerCase());
-      const spent = matches.filter(t => t.date.slice(0,7) === month).reduce((a,t) => a+cents(t.amount),0);
+      const cat = b.category.toLowerCase();
+      const spent = netSpent(cat, t => t.date.slice(0,7) === month);
       const months = (Number(month.slice(0,4))-Number(b.start.slice(0,4)))*12 + Number(month.slice(5))-Number(b.start.slice(5));
-      const prior = matches.filter(t => t.date.slice(0,7) >= b.start && t.date.slice(0,7) < month).reduce((a,t) => a+cents(t.amount),0);
+      const prior = netSpent(cat, t => { const m = t.date.slice(0,7); return m >= b.start && m < month; });
       const carry = b.rollover ? months*cents(b.amount)-prior : 0;
       return {...b, spent:dollars(spent), carry:dollars(carry), available:dollars(cents(b.amount)+carry), remaining:dollars(cents(b.amount)+carry-spent)};
     });
-    const unbudgeted = expenses.filter(t => t.date.slice(0,7) === month && !rows.some(b => b.category.toLowerCase() === t.category.toLowerCase())).reduce((a,t) => a+cents(t.amount),0);
+    const budgeted = new Set(rows.map(b => b.category.toLowerCase()));
+    let unbudgeted = 0;
+    (state.transactions || []).forEach(t => {
+      if (t.date.slice(0,7) !== month) return;
+      const cat = t.type === 'income' && t.refundOf ? refundCategory(t) : t.category.toLowerCase();
+      if (budgeted.has(cat)) return;
+      if (t.type === 'expense') unbudgeted += cents(t.amount);
+      else if (t.type === 'income' && t.refundOf) unbudgeted -= cents(t.amount);
+    });
     return {rows, unbudgeted:dollars(unbudgeted)};
   }
 
@@ -694,7 +778,15 @@
     if(!validDate(start)||!validDate(end)||end<start)throw Error('Choose a valid date range.');
     if(!['category','merchant'].includes(groupBy))throw Error('Choose a valid grouping.');
     const rows=state.transactions.filter(t=>t.type!=='transfer'&&t.date>=start&&t.date<=end&&(accountId==='all'||t.accountId===accountId));
-    const groups=type=>{const m=new Map();rows.filter(t=>t.type===type).forEach(t=>{const name=groupBy==='merchant'?t.label:t.category,key=name.toLowerCase(),g=m.get(key)||{label:name,amount:0};g.amount+=cents(t.amount);m.set(key,g);});return [...m.values()].map(g=>({...g,amount:dollars(g.amount)})).sort((a,b)=>b.amount-a.amount);};
+    // Refund linking (roadmap #36): linked refunds are excluded from income
+    // and netted against the original purchase's category or merchant, so
+    // category spending shows what you actually kept.
+    const refunds=rows.filter(t=>t.type==='income'&&t.refundOf);
+    const refundName=t=>{const o=refundTarget(state,t);return groupBy==='merchant'?(o?o.label:t.label):(o?o.category:t.category);};
+    const groups=type=>{const m=new Map();
+      rows.filter(t=>t.type===type&&!t.refundOf).forEach(t=>{const name=groupBy==='merchant'?t.label:t.category,key=name.toLowerCase(),g=m.get(key)||{label:name,amount:0};g.amount+=cents(t.amount);m.set(key,g);});
+      if(type==='expense')refunds.forEach(t=>{const name=refundName(t),key=name.toLowerCase(),g=m.get(key);if(g)g.amount-=cents(t.amount);else m.set(key,{label:name,amount:-cents(t.amount)});});
+      return [...m.values()].map(g=>({...g,amount:dollars(g.amount)})).sort((a,b)=>b.amount-a.amount);};
     const incomes=groups('income'),expenses=groups('expense'),total=items=>dollars(items.reduce((s,x)=>s+cents(x.amount),0)),income=total(incomes),expense=total(expenses),net=dollars(cents(income)-cents(expense));
     return {rows,incomes,expenses,income,expense,net,rate:income?net/income*100:null};
   }
@@ -812,7 +904,8 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
