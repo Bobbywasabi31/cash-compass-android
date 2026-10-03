@@ -1027,3 +1027,32 @@ test('addAnnotation validates and sorts',()=>{
  assert.throws(()=>C.addAnnotation(s,'','2026-09-15'));
  assert.throws(()=>C.addAnnotation(s,'Test','bad-date'));
 });
+
+test('saveCustomCategory validates and saves',()=>{
+ const s=C.blank();
+ const cats=C.saveCustomCategory(s,'Pet Care','Pets','#ff0000');
+ assert.equal(cats.length,1);
+ assert.equal(cats[0].name,'Pet Care');
+ assert.equal(cats[0].group,'Pets');
+ // Update existing
+ const cats2=C.saveCustomCategory({...s,customCategories:cats},'pet care','Animals','#00ff00');
+ assert.equal(cats2.length,1);
+ assert.equal(cats2[0].group,'Animals');
+ assert.throws(()=>C.saveCustomCategory(s,'','Group'));
+});
+
+test('detectPaychecks finds recurring deposits',()=>{
+ const s=C.blank();
+ // 4 monthly deposits
+ ['2026-06-15','2026-07-15','2026-08-15','2026-09-15'].forEach((d,i)=>{
+   s.transactions.push({id:'p'+i,label:'ACME Corp Payroll',amount:3000,date:d,type:'income',category:'Income',accountId:'cash'});
+ });
+ const detected=C.detectPaychecks(s);
+ assert.equal(detected.length,1);
+ assert.equal(detected[0].repeat,'monthly');
+ assert.equal(detected[0].amount,3000);
+ // Too few deposits
+ const s2=C.blank();
+ s2.transactions.push({id:'p1',label:'Pay',amount:1000,date:'2026-09-15',type:'income',category:'Income',accountId:'cash'});
+ assert.equal(C.detectPaychecks(s2).length,0);
+});

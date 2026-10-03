@@ -1,3 +1,8 @@
+# Cash Compass 1.39.0 preview
+
+- **Custom categories (roadmap #41):** Create categories with groups and colors.
+- **Paycheck auto-detection (roadmap #43):** Suggests recurring income schedules.
+
 # Cash Compass 1.38.0 preview
 
 - **Net worth annotations (roadmap #69):** Mark major events on the net worth chart.

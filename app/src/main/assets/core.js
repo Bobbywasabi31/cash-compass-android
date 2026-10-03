@@ -85,7 +85,47 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Full data export (roadmap #92): everything as JSON.
+    // Custom categories and groups (roadmap #41).
+  function saveCustomCategory(state, name, group, color) {
+    name = String(name || '').trim();
+    if (!name) throw Error('Enter a category name.');
+    if (name.length > 40) throw Error('Keep the name under 40 characters.');
+    const cats = state.customCategories || [];
+    const existing = cats.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.group = String(group || 'Other').trim() || 'Other';
+      existing.color = String(color || '#888888');
+    } else {
+      cats.push({ id: 'cat-' + Date.now(), name, group: String(group || 'Other').trim() || 'Other', color: String(color || '#888888') });
+    }
+    return cats;
+  }
+  // Paycheck auto-detection (roadmap #43): suggest schedules from deposits.
+  function detectPaychecks(state) {
+    const deposits = (state.transactions || [])
+      .filter(t => t.type === 'income' && t.amount > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (deposits.length < 3) return [];
+    // Group by similar amount (±10%) and label similarity
+    const groups = [];
+    deposits.forEach(d => {
+      let g = groups.find(g => Math.abs(g.amount - d.amount) / d.amount < 0.1 &&
+        d.label.toLowerCase().split(/\s+/).some(w => g.label.toLowerCase().includes(w) && w.length > 3));
+      if (g) { g.dates.push(d.date); g.count++; }
+      else groups.push({ label: d.label, amount: d.amount, dates: [d.date], count: 1 });
+    });
+    return groups.filter(g => g.count >= 3).map(g => {
+      // Detect frequency from date gaps
+      const gaps = [];
+      for (let i = 1; i < g.dates.length; i++) {
+        gaps.push((new Date(g.dates[i]) - new Date(g.dates[i-1])) / 86400000);
+      }
+      const avgGap = gaps.reduce((s, x) => s + x, 0) / gaps.length;
+      const repeat = avgGap < 10 ? 'weekly' : avgGap < 20 ? 'biweekly' : avgGap < 40 ? 'monthly' : 'none';
+      return { label: g.label, amount: g.amount, repeat, count: g.count, lastDate: g.dates[g.dates.length - 1] };
+    });
+  }
+  // Full data export (roadmap #92): everything as JSON.
   function fullExport(state) {
     return JSON.stringify({
       exported: new Date().toISOString(),
@@ -422,7 +462,47 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Full data export (roadmap #92): everything as JSON.
+    // Custom categories and groups (roadmap #41).
+  function saveCustomCategory(state, name, group, color) {
+    name = String(name || '').trim();
+    if (!name) throw Error('Enter a category name.');
+    if (name.length > 40) throw Error('Keep the name under 40 characters.');
+    const cats = state.customCategories || [];
+    const existing = cats.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.group = String(group || 'Other').trim() || 'Other';
+      existing.color = String(color || '#888888');
+    } else {
+      cats.push({ id: 'cat-' + Date.now(), name, group: String(group || 'Other').trim() || 'Other', color: String(color || '#888888') });
+    }
+    return cats;
+  }
+  // Paycheck auto-detection (roadmap #43): suggest schedules from deposits.
+  function detectPaychecks(state) {
+    const deposits = (state.transactions || [])
+      .filter(t => t.type === 'income' && t.amount > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (deposits.length < 3) return [];
+    // Group by similar amount (±10%) and label similarity
+    const groups = [];
+    deposits.forEach(d => {
+      let g = groups.find(g => Math.abs(g.amount - d.amount) / d.amount < 0.1 &&
+        d.label.toLowerCase().split(/\s+/).some(w => g.label.toLowerCase().includes(w) && w.length > 3));
+      if (g) { g.dates.push(d.date); g.count++; }
+      else groups.push({ label: d.label, amount: d.amount, dates: [d.date], count: 1 });
+    });
+    return groups.filter(g => g.count >= 3).map(g => {
+      // Detect frequency from date gaps
+      const gaps = [];
+      for (let i = 1; i < g.dates.length; i++) {
+        gaps.push((new Date(g.dates[i]) - new Date(g.dates[i-1])) / 86400000);
+      }
+      const avgGap = gaps.reduce((s, x) => s + x, 0) / gaps.length;
+      const repeat = avgGap < 10 ? 'weekly' : avgGap < 20 ? 'biweekly' : avgGap < 40 ? 'monthly' : 'none';
+      return { label: g.label, amount: g.amount, repeat, count: g.count, lastDate: g.dates[g.dates.length - 1] };
+    });
+  }
+  // Full data export (roadmap #92): everything as JSON.
   function fullExport(state) {
     return JSON.stringify({
       exported: new Date().toISOString(),
@@ -685,7 +765,47 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Full data export (roadmap #92): everything as JSON.
+    // Custom categories and groups (roadmap #41).
+  function saveCustomCategory(state, name, group, color) {
+    name = String(name || '').trim();
+    if (!name) throw Error('Enter a category name.');
+    if (name.length > 40) throw Error('Keep the name under 40 characters.');
+    const cats = state.customCategories || [];
+    const existing = cats.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.group = String(group || 'Other').trim() || 'Other';
+      existing.color = String(color || '#888888');
+    } else {
+      cats.push({ id: 'cat-' + Date.now(), name, group: String(group || 'Other').trim() || 'Other', color: String(color || '#888888') });
+    }
+    return cats;
+  }
+  // Paycheck auto-detection (roadmap #43): suggest schedules from deposits.
+  function detectPaychecks(state) {
+    const deposits = (state.transactions || [])
+      .filter(t => t.type === 'income' && t.amount > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (deposits.length < 3) return [];
+    // Group by similar amount (±10%) and label similarity
+    const groups = [];
+    deposits.forEach(d => {
+      let g = groups.find(g => Math.abs(g.amount - d.amount) / d.amount < 0.1 &&
+        d.label.toLowerCase().split(/\s+/).some(w => g.label.toLowerCase().includes(w) && w.length > 3));
+      if (g) { g.dates.push(d.date); g.count++; }
+      else groups.push({ label: d.label, amount: d.amount, dates: [d.date], count: 1 });
+    });
+    return groups.filter(g => g.count >= 3).map(g => {
+      // Detect frequency from date gaps
+      const gaps = [];
+      for (let i = 1; i < g.dates.length; i++) {
+        gaps.push((new Date(g.dates[i]) - new Date(g.dates[i-1])) / 86400000);
+      }
+      const avgGap = gaps.reduce((s, x) => s + x, 0) / gaps.length;
+      const repeat = avgGap < 10 ? 'weekly' : avgGap < 20 ? 'biweekly' : avgGap < 40 ? 'monthly' : 'none';
+      return { label: g.label, amount: g.amount, repeat, count: g.count, lastDate: g.dates[g.dates.length - 1] };
+    });
+  }
+  // Full data export (roadmap #92): everything as JSON.
   function fullExport(state) {
     return JSON.stringify({
       exported: new Date().toISOString(),
@@ -1531,6 +1651,46 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Custom categories and groups (roadmap #41).
+  function saveCustomCategory(state, name, group, color) {
+    name = String(name || '').trim();
+    if (!name) throw Error('Enter a category name.');
+    if (name.length > 40) throw Error('Keep the name under 40 characters.');
+    const cats = state.customCategories || [];
+    const existing = cats.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.group = String(group || 'Other').trim() || 'Other';
+      existing.color = String(color || '#888888');
+    } else {
+      cats.push({ id: 'cat-' + Date.now(), name, group: String(group || 'Other').trim() || 'Other', color: String(color || '#888888') });
+    }
+    return cats;
+  }
+  // Paycheck auto-detection (roadmap #43): suggest schedules from deposits.
+  function detectPaychecks(state) {
+    const deposits = (state.transactions || [])
+      .filter(t => t.type === 'income' && t.amount > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (deposits.length < 3) return [];
+    // Group by similar amount (±10%) and label similarity
+    const groups = [];
+    deposits.forEach(d => {
+      let g = groups.find(g => Math.abs(g.amount - d.amount) / d.amount < 0.1 &&
+        d.label.toLowerCase().split(/\s+/).some(w => g.label.toLowerCase().includes(w) && w.length > 3));
+      if (g) { g.dates.push(d.date); g.count++; }
+      else groups.push({ label: d.label, amount: d.amount, dates: [d.date], count: 1 });
+    });
+    return groups.filter(g => g.count >= 3).map(g => {
+      // Detect frequency from date gaps
+      const gaps = [];
+      for (let i = 1; i < g.dates.length; i++) {
+        gaps.push((new Date(g.dates[i]) - new Date(g.dates[i-1])) / 86400000);
+      }
+      const avgGap = gaps.reduce((s, x) => s + x, 0) / gaps.length;
+      const repeat = avgGap < 10 ? 'weekly' : avgGap < 20 ? 'biweekly' : avgGap < 40 ? 'monthly' : 'none';
+      return { label: g.label, amount: g.amount, repeat, count: g.count, lastDate: g.dates[g.dates.length - 1] };
+    });
   }
   // Full data export (roadmap #92): everything as JSON.
   function fullExport(state) {
@@ -2614,7 +2774,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
