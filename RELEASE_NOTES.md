@@ -1,3 +1,8 @@
+# 1.48.0
+
+- Receipt photo attachments (#35): snap a photo of your receipt (camera on Android) or attach from gallery. Stored locally with the transaction, tap the 🧾 icon to view.
+- Quick-add (#10): new ⚡ Quick add button on Home — type amount, tap category, done. Two taps for cash purchases.
+
 # Cash Compass 1.47.0 preview
 
 - **Accessibility (roadmap #81):** Touch targets, focus, contrast, font scaling.
