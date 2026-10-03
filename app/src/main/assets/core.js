@@ -85,7 +85,45 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Contribution log (roadmap #57): recurring investment contributions.
+    // Year-in-review (roadmap #61): annual summary.
+  function yearInReview(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
+    let income = 0, expense = 0;
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.date.slice(0, 4) !== year || t.type === 'transfer') return;
+      if (t.type === 'income') income = dollars(cents(income) + cents(t.amount));
+      else {
+        expense = dollars(cents(expense) + cents(t.amount));
+        const cat = t.category || 'Other';
+        byCategory[cat] = dollars(cents(byCategory[cat] || 0) + cents(t.amount));
+      }
+    });
+    const saved = dollars(cents(income) - cents(expense));
+    const topCategories = Object.entries(byCategory)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => cents(b.total) - cents(a.total)).slice(0, 5);
+    // Net worth: use balance history if available
+    const history = (state.balanceHistory || []).filter(h => h.date.slice(0, 4) === year);
+    const startWorth = history.length ? history[0].value : null;
+    const endWorth = history.length ? history[history.length - 1].value : null;
+    return { year, income, expense, saved,
+      savingsRate: income > 0 ? Math.round(cents(saved) / cents(income) * 1000) / 10 : null,
+      topCategories, startWorth, endWorth,
+      worthChange: startWorth !== null && endWorth !== null ? dollars(cents(endWorth) - cents(startWorth)) : null };
+  }
+  // Seasonal income vs expense view (roadmap #62): good/lean months side by side.
+  function seasonalView(state, monthsBack = 12) {
+    const rows = monthlyTotals(state, localDate(), monthsBack).map(r => ({
+      ...r, net: dollars(cents(r.income) - cents(r.expense))
+    }));
+    const sorted = rows.slice().sort((a, b) => cents(b.net) - cents(a.net));
+    const good = sorted.slice(0, 3), lean = sorted.slice(-3).reverse();
+    const avgNet = rows.length ? dollars(Math.round(rows.reduce((s, r) => s + cents(r.net), 0) / rows.length)) : 0;
+    return { rows, good, lean, avgNet };
+  }
+  // Contribution log (roadmap #57): recurring investment contributions.
   function contributionStats(state) {
     const contribs = (state.contributions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
     const total = dollars(contribs.reduce((s, c) => s + cents(c.amount), 0));
@@ -188,7 +226,45 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Contribution log (roadmap #57): recurring investment contributions.
+    // Year-in-review (roadmap #61): annual summary.
+  function yearInReview(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
+    let income = 0, expense = 0;
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.date.slice(0, 4) !== year || t.type === 'transfer') return;
+      if (t.type === 'income') income = dollars(cents(income) + cents(t.amount));
+      else {
+        expense = dollars(cents(expense) + cents(t.amount));
+        const cat = t.category || 'Other';
+        byCategory[cat] = dollars(cents(byCategory[cat] || 0) + cents(t.amount));
+      }
+    });
+    const saved = dollars(cents(income) - cents(expense));
+    const topCategories = Object.entries(byCategory)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => cents(b.total) - cents(a.total)).slice(0, 5);
+    // Net worth: use balance history if available
+    const history = (state.balanceHistory || []).filter(h => h.date.slice(0, 4) === year);
+    const startWorth = history.length ? history[0].value : null;
+    const endWorth = history.length ? history[history.length - 1].value : null;
+    return { year, income, expense, saved,
+      savingsRate: income > 0 ? Math.round(cents(saved) / cents(income) * 1000) / 10 : null,
+      topCategories, startWorth, endWorth,
+      worthChange: startWorth !== null && endWorth !== null ? dollars(cents(endWorth) - cents(startWorth)) : null };
+  }
+  // Seasonal income vs expense view (roadmap #62): good/lean months side by side.
+  function seasonalView(state, monthsBack = 12) {
+    const rows = monthlyTotals(state, localDate(), monthsBack).map(r => ({
+      ...r, net: dollars(cents(r.income) - cents(r.expense))
+    }));
+    const sorted = rows.slice().sort((a, b) => cents(b.net) - cents(a.net));
+    const good = sorted.slice(0, 3), lean = sorted.slice(-3).reverse();
+    const avgNet = rows.length ? dollars(Math.round(rows.reduce((s, r) => s + cents(r.net), 0) / rows.length)) : 0;
+    return { rows, good, lean, avgNet };
+  }
+  // Contribution log (roadmap #57): recurring investment contributions.
   function contributionStats(state) {
     const contribs = (state.contributions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
     const total = dollars(contribs.reduce((s, c) => s + cents(c.amount), 0));
@@ -217,7 +293,45 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Contribution log (roadmap #57) and manual assets (roadmap #58).
+    // Year-in-review (roadmap #61): annual summary.
+  function yearInReview(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
+    let income = 0, expense = 0;
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.date.slice(0, 4) !== year || t.type === 'transfer') return;
+      if (t.type === 'income') income = dollars(cents(income) + cents(t.amount));
+      else {
+        expense = dollars(cents(expense) + cents(t.amount));
+        const cat = t.category || 'Other';
+        byCategory[cat] = dollars(cents(byCategory[cat] || 0) + cents(t.amount));
+      }
+    });
+    const saved = dollars(cents(income) - cents(expense));
+    const topCategories = Object.entries(byCategory)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => cents(b.total) - cents(a.total)).slice(0, 5);
+    // Net worth: use balance history if available
+    const history = (state.balanceHistory || []).filter(h => h.date.slice(0, 4) === year);
+    const startWorth = history.length ? history[0].value : null;
+    const endWorth = history.length ? history[history.length - 1].value : null;
+    return { year, income, expense, saved,
+      savingsRate: income > 0 ? Math.round(cents(saved) / cents(income) * 1000) / 10 : null,
+      topCategories, startWorth, endWorth,
+      worthChange: startWorth !== null && endWorth !== null ? dollars(cents(endWorth) - cents(startWorth)) : null };
+  }
+  // Seasonal income vs expense view (roadmap #62): good/lean months side by side.
+  function seasonalView(state, monthsBack = 12) {
+    const rows = monthlyTotals(state, localDate(), monthsBack).map(r => ({
+      ...r, net: dollars(cents(r.income) - cents(r.expense))
+    }));
+    const sorted = rows.slice().sort((a, b) => cents(b.net) - cents(a.net));
+    const good = sorted.slice(0, 3), lean = sorted.slice(-3).reverse();
+    const avgNet = rows.length ? dollars(Math.round(rows.reduce((s, r) => s + cents(r.net), 0) / rows.length)) : 0;
+    return { rows, good, lean, avgNet };
+  }
+  // Contribution log (roadmap #57) and manual assets (roadmap #58).
     result.contributions = list(raw.contributions).map((x,i) => {
       if (!x || typeof x !== 'object') throw Error('Invalid contribution.');
       if (!validDate(x.date)) throw Error('Invalid contribution date.');
@@ -822,6 +936,44 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Year-in-review (roadmap #61): annual summary.
+  function yearInReview(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
+    let income = 0, expense = 0;
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.date.slice(0, 4) !== year || t.type === 'transfer') return;
+      if (t.type === 'income') income = dollars(cents(income) + cents(t.amount));
+      else {
+        expense = dollars(cents(expense) + cents(t.amount));
+        const cat = t.category || 'Other';
+        byCategory[cat] = dollars(cents(byCategory[cat] || 0) + cents(t.amount));
+      }
+    });
+    const saved = dollars(cents(income) - cents(expense));
+    const topCategories = Object.entries(byCategory)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => cents(b.total) - cents(a.total)).slice(0, 5);
+    // Net worth: use balance history if available
+    const history = (state.balanceHistory || []).filter(h => h.date.slice(0, 4) === year);
+    const startWorth = history.length ? history[0].value : null;
+    const endWorth = history.length ? history[history.length - 1].value : null;
+    return { year, income, expense, saved,
+      savingsRate: income > 0 ? Math.round(cents(saved) / cents(income) * 1000) / 10 : null,
+      topCategories, startWorth, endWorth,
+      worthChange: startWorth !== null && endWorth !== null ? dollars(cents(endWorth) - cents(startWorth)) : null };
+  }
+  // Seasonal income vs expense view (roadmap #62): good/lean months side by side.
+  function seasonalView(state, monthsBack = 12) {
+    const rows = monthlyTotals(state, localDate(), monthsBack).map(r => ({
+      ...r, net: dollars(cents(r.income) - cents(r.expense))
+    }));
+    const sorted = rows.slice().sort((a, b) => cents(b.net) - cents(a.net));
+    const good = sorted.slice(0, 3), lean = sorted.slice(-3).reverse();
+    const avgNet = rows.length ? dollars(Math.round(rows.reduce((s, r) => s + cents(r.net), 0) / rows.length)) : 0;
+    return { rows, good, lean, avgNet };
   }
   // Contribution log (roadmap #57): recurring investment contributions.
   function contributionStats(state) {
@@ -1671,7 +1823,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

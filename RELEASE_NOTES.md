@@ -1,3 +1,8 @@
+# Cash Compass 1.31.0 preview
+
+- **Year-in-review (roadmap #61):** Reports → Year in review with annual totals, savings rate, top categories, and net worth change.
+- **Seasonal view (roadmap #62):** Reports → Seasonal view with best and leanest months side by side.
+
 # Cash Compass 1.30.0 preview
 
 - **Contribution log (roadmap #57):** Investments → Contributions tracks investment contributions with monthly breakdown.

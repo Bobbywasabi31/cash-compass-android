@@ -880,3 +880,29 @@ test('manualNetWorth includes assets and liabilities',()=>{
  assert.equal(n.manualAssets.length,2);
  assert.equal(n.contributions.length,0);
 });
+
+test('yearInReview summarizes annual activity',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Job',amount:50000,date:'2026-03-15',type:'income',category:'Income',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Food',amount:12000,date:'2026-05-15',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t3',label:'Rent',amount:18000,date:'2026-07-15',type:'expense',category:'Housing',accountId:'cash'});
+ const y=C.yearInReview(s,'2026');
+ assert.equal(y.income,50000);
+ assert.equal(y.expense,30000);
+ assert.equal(y.saved,20000);
+ assert.equal(y.savingsRate,40);
+ assert.equal(y.topCategories[0].category,'Housing');
+ assert.throws(()=>C.yearInReview(s,'bad'));
+});
+
+test('seasonalView splits good and lean months',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Job',amount:5000,date:'2026-08-15',type:'income',category:'Income',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Food',amount:1000,date:'2026-08-15',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t3',label:'Job',amount:2000,date:'2026-09-15',type:'income',category:'Income',accountId:'cash'});
+ s.transactions.push({id:'t4',label:'Food',amount:3000,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const v=C.seasonalView(s,12);
+ assert.ok(v.good.length>0);
+ assert.ok(v.lean.length>0);
+ assert.ok(v.good[0].net>=v.lean[0].net);
+});
