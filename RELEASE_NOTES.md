@@ -1,3 +1,8 @@
+# 1.50.0
+
+- Encrypted backups (#8): protect your backup with a passphrase (AES-256). Download and restore from Backup / restore.
+- Physical-device test checklist (#93): step-by-step manual test plan for real Android devices.
+
 # 1.49.0
 
 - Tablet/landscape/foldable polish (#87): better layouts on tablets, landscape phones, and foldables (dual-screen support).
