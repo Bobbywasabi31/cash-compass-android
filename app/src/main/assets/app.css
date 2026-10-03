@@ -109,3 +109,10 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
 /* Privacy mode (roadmap #84) */
 .privacy-mode .money,.privacy-mode .stat strong,.privacy-mode .summary b{filter:blur(8px);user-select:none}
 .privacy-mode .money:hover,.privacy-mode .stat strong:hover,.privacy-mode .summary b:hover{filter:none}
+
+/* In-app help (roadmap #88) */
+.help-tip{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--muted);color:white;font-size:11px;font-weight:700;cursor:help;margin-left:6px;vertical-align:middle}
+.help-tip:hover{background:var(--pine)}
+.muted{color:var(--muted)}
+.plan-result{background:var(--mint);border-radius:8px;padding:12px;margin-top:12px}
+.plan-result h4{margin:0 0 8px}

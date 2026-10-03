@@ -1,3 +1,8 @@
+# Cash Compass 1.44.0 preview
+
+- **Seasonal planner (roadmap #17):** Define seasons with year calendar.
+- **In-app help (roadmap #88):** Tooltips and empty states.
+
 # Cash Compass 1.43.0 preview
 
 - **LICENSE (roadmap #96):** MIT license.

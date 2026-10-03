@@ -133,6 +133,38 @@
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
   }
+  // Seasonal/contract income planner (roadmap #17).
+  function saveSeason(state, data) {
+    const seasons = state.seasons || [];
+    const season = {
+      id: data.id || 'season-' + Date.now(),
+      label: String(data.label || '').trim(),
+      startMonth: String(data.startMonth || ''),
+      endMonth: String(data.endMonth || ''),
+      monthlyIncome: Number(data.monthlyIncome) || 0,
+      hoursPerWeek: Number(data.hoursPerWeek) || 0,
+      hourlyRate: Number(data.hourlyRate) || 0,
+    };
+    if (!season.label) throw Error('Enter a season name.');
+    if (!/^\d{4}-\d{2}$/.test(season.startMonth) || !/^\d{4}-\d{2}$/.test(season.endMonth))
+      throw Error('Choose valid start and end months.');
+    if (season.startMonth > season.endMonth) throw Error('Start must be before end.');
+    const i = seasons.findIndex(s => s.id === season.id);
+    if (i < 0) seasons.push(season); else seasons[i] = season;
+    return seasons;
+  }
+  function seasonCalendar(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    const months = [];
+    for (let m = 1; m <= 12; m++) {
+      const month = `${year}-${String(m).padStart(2, '0')}`;
+      const active = (state.seasons || []).filter(s => month >= s.startMonth && month <= s.endMonth);
+      const income = active.reduce((sum, s) => sum + s.monthlyIncome, 0);
+      months.push({ month, seasons: active.map(s => s.label), income });
+    }
+    const total = months.reduce((s, m) => s + m.income, 0);
+    return { year, months, total, average: Math.round(total / 12 * 100) / 100 };
+  }
   // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
     name = String(name || '').trim();
@@ -558,6 +590,38 @@
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
   }
+  // Seasonal/contract income planner (roadmap #17).
+  function saveSeason(state, data) {
+    const seasons = state.seasons || [];
+    const season = {
+      id: data.id || 'season-' + Date.now(),
+      label: String(data.label || '').trim(),
+      startMonth: String(data.startMonth || ''),
+      endMonth: String(data.endMonth || ''),
+      monthlyIncome: Number(data.monthlyIncome) || 0,
+      hoursPerWeek: Number(data.hoursPerWeek) || 0,
+      hourlyRate: Number(data.hourlyRate) || 0,
+    };
+    if (!season.label) throw Error('Enter a season name.');
+    if (!/^\d{4}-\d{2}$/.test(season.startMonth) || !/^\d{4}-\d{2}$/.test(season.endMonth))
+      throw Error('Choose valid start and end months.');
+    if (season.startMonth > season.endMonth) throw Error('Start must be before end.');
+    const i = seasons.findIndex(s => s.id === season.id);
+    if (i < 0) seasons.push(season); else seasons[i] = season;
+    return seasons;
+  }
+  function seasonCalendar(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    const months = [];
+    for (let m = 1; m <= 12; m++) {
+      const month = `${year}-${String(m).padStart(2, '0')}`;
+      const active = (state.seasons || []).filter(s => month >= s.startMonth && month <= s.endMonth);
+      const income = active.reduce((sum, s) => sum + s.monthlyIncome, 0);
+      months.push({ month, seasons: active.map(s => s.label), income });
+    }
+    const total = months.reduce((s, m) => s + m.income, 0);
+    return { year, months, total, average: Math.round(total / 12 * 100) / 100 };
+  }
   // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
     name = String(name || '').trim();
@@ -908,6 +972,38 @@
     const monthlyInterest = remaining * (card.apr / 100 / 12);
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // Seasonal/contract income planner (roadmap #17).
+  function saveSeason(state, data) {
+    const seasons = state.seasons || [];
+    const season = {
+      id: data.id || 'season-' + Date.now(),
+      label: String(data.label || '').trim(),
+      startMonth: String(data.startMonth || ''),
+      endMonth: String(data.endMonth || ''),
+      monthlyIncome: Number(data.monthlyIncome) || 0,
+      hoursPerWeek: Number(data.hoursPerWeek) || 0,
+      hourlyRate: Number(data.hourlyRate) || 0,
+    };
+    if (!season.label) throw Error('Enter a season name.');
+    if (!/^\d{4}-\d{2}$/.test(season.startMonth) || !/^\d{4}-\d{2}$/.test(season.endMonth))
+      throw Error('Choose valid start and end months.');
+    if (season.startMonth > season.endMonth) throw Error('Start must be before end.');
+    const i = seasons.findIndex(s => s.id === season.id);
+    if (i < 0) seasons.push(season); else seasons[i] = season;
+    return seasons;
+  }
+  function seasonCalendar(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    const months = [];
+    for (let m = 1; m <= 12; m++) {
+      const month = `${year}-${String(m).padStart(2, '0')}`;
+      const active = (state.seasons || []).filter(s => month >= s.startMonth && month <= s.endMonth);
+      const income = active.reduce((sum, s) => sum + s.monthlyIncome, 0);
+      months.push({ month, seasons: active.map(s => s.label), income });
+    }
+    const total = months.reduce((s, m) => s + m.income, 0);
+    return { year, months, total, average: Math.round(total / 12 * 100) / 100 };
   }
   // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
@@ -1843,6 +1939,38 @@
     const monthlyInterest = remaining * (card.apr / 100 / 12);
     return { card: card.label, amount, strategy, remaining, monthlyInterest,
       dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // Seasonal/contract income planner (roadmap #17).
+  function saveSeason(state, data) {
+    const seasons = state.seasons || [];
+    const season = {
+      id: data.id || 'season-' + Date.now(),
+      label: String(data.label || '').trim(),
+      startMonth: String(data.startMonth || ''),
+      endMonth: String(data.endMonth || ''),
+      monthlyIncome: Number(data.monthlyIncome) || 0,
+      hoursPerWeek: Number(data.hoursPerWeek) || 0,
+      hourlyRate: Number(data.hourlyRate) || 0,
+    };
+    if (!season.label) throw Error('Enter a season name.');
+    if (!/^\d{4}-\d{2}$/.test(season.startMonth) || !/^\d{4}-\d{2}$/.test(season.endMonth))
+      throw Error('Choose valid start and end months.');
+    if (season.startMonth > season.endMonth) throw Error('Start must be before end.');
+    const i = seasons.findIndex(s => s.id === season.id);
+    if (i < 0) seasons.push(season); else seasons[i] = season;
+    return seasons;
+  }
+  function seasonCalendar(state, year) {
+    year = String(year || localDate().slice(0, 4));
+    const months = [];
+    for (let m = 1; m <= 12; m++) {
+      const month = `${year}-${String(m).padStart(2, '0')}`;
+      const active = (state.seasons || []).filter(s => month >= s.startMonth && month <= s.endMonth);
+      const income = active.reduce((sum, s) => sum + s.monthlyIncome, 0);
+      months.push({ month, seasons: active.map(s => s.label), income });
+    }
+    const total = months.reduce((s, m) => s + m.income, 0);
+    return { year, months, total, average: Math.round(total / 12 * 100) / 100 };
   }
   // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
@@ -2966,7 +3094,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

@@ -1087,3 +1087,23 @@ test('planCardPayment suggests strategy',()=>{
  const plan2=C.planCardPayment(s,s.creditCards[0].id,0);
  assert.ok(plan2.amount<1000);
 });
+
+test('saveSeason validates and saves',()=>{
+ const s=C.blank();
+ const seasons=C.saveSeason(s,{label:'Summer',startMonth:'2026-06',endMonth:'2026-08',monthlyIncome:5000});
+ assert.equal(seasons.length,1);
+ assert.equal(seasons[0].label,'Summer');
+ assert.throws(()=>C.saveSeason(s,{label:'',startMonth:'2026-06',endMonth:'2026-08'}));
+ assert.throws(()=>C.saveSeason(s,{label:'Test',startMonth:'2026-08',endMonth:'2026-06'}));
+});
+
+test('seasonCalendar shows year view',()=>{
+ const s=C.blank();
+ s.seasons=C.saveSeason(s,{label:'Summer',startMonth:'2026-06',endMonth:'2026-08',monthlyIncome:5000});
+ const cal=C.seasonCalendar(s,'2026');
+ assert.equal(cal.year,'2026');
+ assert.equal(cal.months.length,12);
+ assert.equal(cal.months[5].income,5000); // June
+ assert.equal(cal.months[0].income,0); // January
+ assert.equal(cal.total,15000);
+});
