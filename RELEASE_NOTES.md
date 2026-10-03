@@ -1,3 +1,8 @@
+# Cash Compass 1.20.0 preview
+
+- **Overtime and holiday pay (roadmap #17):** the paycheck estimator now accepts overtime hours (paid at 1.5×) and holiday hours (paid at 2×), showing a regular/overtime/holiday breakdown plus gross, estimated tax, and take-home. The take-home can be added as planned income.
+- **Gig income variability (roadmap #18):** Plan → Gig income variability shows your worst and best recorded months, average, and a 0–100 consistency score (100 = perfectly steady income).
+
 # Cash Compass 1.19.0 preview
 
 - **Multiple income streams (roadmap #19):** income entries now track optional hours and hourly rate per stream. Plan → Income streams groups expected income by source over the next 12 months — paydays, next payday, expected total, and per-stream plus combined monthly equivalents.

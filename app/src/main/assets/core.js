@@ -476,13 +476,33 @@
   }
   // Hours and paycheck estimator (roadmap #16): gross and take-home from
   // hourly rate × hours, using the user's deduction rate.
-  function paycheckEstimate(hourlyRate, hours, taxRate) {
+  // Overtime and holiday pay (roadmap #17): overtime at 1.5×, holiday at 2×.
+  function paycheckEstimate(hourlyRate, hours, taxRate, overtimeHours = 0, holidayHours = 0) {
     hourlyRate = number(hourlyRate, 0);
     hours = number(hours, 0, 1000);
+    overtimeHours = number(overtimeHours, 0, 1000);
+    holidayHours = number(holidayHours, 0, 1000);
     taxRate = number(taxRate, 0, 100);
-    const grossCents = Math.round(cents(hourlyRate) * hours);
+    const regularCents = Math.round(cents(hourlyRate) * hours);
+    const overtimeCents = Math.round(cents(hourlyRate) * 1.5 * overtimeHours);
+    const holidayCents = Math.round(cents(hourlyRate) * 2 * holidayHours);
+    const grossCents = regularCents + overtimeCents + holidayCents;
     const taxCents = Math.round(grossCents * taxRate / 100);
-    return { hourlyRate, hours, taxRate, gross: dollars(grossCents), tax: dollars(taxCents), takeHome: dollars(grossCents - taxCents) };
+    return { hourlyRate, hours, overtimeHours, holidayHours, taxRate,
+      regularPay: dollars(regularCents), overtimePay: dollars(overtimeCents), holidayPay: dollars(holidayCents),
+      gross: dollars(grossCents), tax: dollars(taxCents), takeHome: dollars(grossCents - taxCents) };
+  }
+  // Gig income variability (roadmap #18): monthly income range plus a
+  // consistency score (100 minus the coefficient of variation, 0–100).
+  function gigIncomeStats(state, monthsBack = 12) {
+    const incomes = monthlyTotals(state, localDate(), monthsBack).map(r => r.income).filter(v => v > 0);
+    if (incomes.length < 2) return null;
+    const min = Math.min(...incomes), max = Math.max(...incomes);
+    const mean = incomes.reduce((s, v) => s + v, 0) / incomes.length;
+    const variance = incomes.reduce((s, v) => s + (v - mean) * (v - mean), 0) / incomes.length;
+    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+    return { min, max, avg: dollars(incomes.reduce((s, v) => s + cents(v), 0) / incomes.length),
+      months: incomes.length, consistency: Math.max(0, Math.min(100, Math.round(100 - cv * 100))) };
   }
   // Income smoothing (roadmap #15): pick a steady target paycheck; see how
   // much to reserve in high months and draw in lean months, from recorded
@@ -1094,7 +1114,7 @@
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
-  paycheckEstimate, incomeSmoothing, budgetAlerts, payPeriod, periodSpent,
+  paycheckEstimate, incomeSmoothing, gigIncomeStats, budgetAlerts, payPeriod, periodSpent,
   payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

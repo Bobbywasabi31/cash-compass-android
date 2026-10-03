@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.19.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.20.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.20.0: Overtime, holiday pay, and gig income variability
+
+- **Overtime and holiday pay** (roadmap #17): the paycheck estimator now accepts overtime hours (paid at 1.5×) and holiday hours (paid at 2×), with a per-component breakdown and take-home total that can be added as planned income.
+- **Gig income variability** (roadmap #18): Plan → Gig income variability shows your worst/best recorded months, average, and a 0–100 consistency score (100 = perfectly steady).
 
 ## New in 1.19.0: Income streams and per-bill reminders
 

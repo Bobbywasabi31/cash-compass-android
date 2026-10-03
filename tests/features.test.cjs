@@ -560,3 +560,31 @@ test('bill reminder settings normalize with safe defaults',()=>{
  assert.throws(()=>norm([{label:'X',amount:10,date:'2026-10-01',repeat:'none',category:'Other',reminderDays:999}]));
  assert.throws(()=>norm([{label:'X',amount:10,date:'2026-10-01',repeat:'none',category:'Other',reminderDays:-1}]));
 });
+
+test('paycheck estimate includes overtime at 1.5x and holiday at 2x',()=>{
+ const est=C.paycheckEstimate(20,40,25,10,8);
+ assert.equal(est.regularPay,800);
+ assert.equal(est.overtimePay,300);
+ assert.equal(est.holidayPay,320);
+ assert.equal(est.gross,1420);
+ assert.equal(est.tax,355);
+ assert.equal(est.takeHome,1065);
+ const plain=C.paycheckEstimate(20,40,25);
+ assert.equal(plain.overtimePay,0);
+ assert.equal(plain.holidayPay,0);
+ assert.equal(plain.gross,800);
+ assert.throws(()=>C.paycheckEstimate(20,-1,25));
+});
+
+test('gig income stats show range and consistency score',()=>{
+ const s=C.blank();
+ const add=(month,amount)=>{s.transactions.push({id:'g'+month+amount,label:'Gig',amount,date:month+'-15',type:'income',category:'Income',accountId:'cash'});};
+ add('2026-08',800);add('2026-09',1400);
+ const stats=C.gigIncomeStats(s,12);
+ assert.equal(stats.min,800);assert.equal(stats.max,1400);assert.equal(stats.months,2);
+ assert.ok(stats.consistency>=0&&stats.consistency<=100);
+ assert.equal(C.gigIncomeStats(C.blank(),12),null);
+ const steady=C.blank();
+ ['2026-01','2026-02'].forEach(m=>steady.transactions.push({id:'s'+m,label:'Job',amount:2000,date:m+'-15',type:'income',category:'Income',accountId:'cash'}));
+ assert.equal(C.gigIncomeStats(steady,12).consistency,100);
+});
