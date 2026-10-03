@@ -89,3 +89,14 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
  .panel{break-inside:avoid;border:1px solid #ccc;margin:12px 0}
 }
 .suggestion-hint{background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px;margin:8px 0;font-size:14px}
+
+/* Themes (roadmap #82): dark, light, system, high-contrast */
+[data-theme="dark"]{--ink:#e8e6e3;--muted:#a8a5a0;--paper:#1a1a1a;--white:#2a2a2a;--line:#3a3a3a;--pine:#4ade80;--pine-deep:#22c55e;--mint:#1e3a2a;--coral:#fb923c;--shadow:0 2px 8px rgba(0,0,0,.3)}
+[data-theme="dark"] .panel,[data-theme="dark"] .card{background:#2a2a2a;border-color:#3a3a3a}
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#1a1a1a;color:#e8e6e3;border-color:#3a3a3a}
+[data-theme="high-contrast"]{--ink:#000;--muted:#333;--paper:#fff;--white:#fff;--line:#000;--pine:#006400;--pine-deep:#004d00;--coral:#cc0000}
+[data-theme="high-contrast"] *{border-color:#000!important}
+[data-theme="high-contrast"] .primary{background:#000;color:#fff}
+@media (prefers-color-scheme: dark){
+ [data-theme="system"]{--ink:#e8e6e3;--muted:#a8a5a0;--paper:#1a1a1a;--white:#2a2a2a;--line:#3a3a3a;--pine:#4ade80;--pine-deep:#22c55e;--mint:#1e3a2a;--coral:#fb923c}
+}

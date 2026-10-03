@@ -1,3 +1,8 @@
+# Cash Compass 1.41.0 preview
+
+- **Themes (roadmap #82):** System, Light, Dark, High contrast in Profile.
+- **Allocation chart (roadmap #55):** Verified in Investments → Allocation.
+
 # Cash Compass 1.40.0 preview
 
 - **Credit card tracker (roadmap #46):** Statement dates, due dates, minimums, APR.
