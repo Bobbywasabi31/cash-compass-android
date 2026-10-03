@@ -7,6 +7,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -21,6 +23,8 @@ public class MainActivity extends Activity {
     private WebView app;
     private String pendingCSV;
     private static final int OPEN_CSV = 41, SAVE_CSV = 42, NOTIFICATIONS = 43;
+    private ValueCallback<android.net.Uri[]> receiptCallback;
+    private static final int PICK_RECEIPT = 44;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override public void onCreate(Bundle savedInstanceState) {
@@ -53,6 +57,25 @@ public class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         app.setBackgroundColor(Color.parseColor("#F8F7F4"));
         app.addJavascriptInterface(new Bridge(), "NativeBridge");
+        app.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<android.net.Uri[]> callback,
+                    FileChooserParams params) {
+                if (receiptCallback != null) { receiptCallback.onReceiveValue(null); receiptCallback = null; }
+                receiptCallback = callback;
+                String[] accept = params.getAcceptTypes();
+                String type = (accept != null && accept.length > 0 && accept[0] != null && !accept[0].isEmpty())
+                        ? accept[0] : "image/*";
+                try {
+                    startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT)
+                            .addCategory(android.content.Intent.CATEGORY_OPENABLE).setType(type), PICK_RECEIPT);
+                } catch (android.content.ActivityNotFoundException e) {
+                    receiptCallback = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+                return true;
+            }
+        });
         app.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return !request.getUrl().toString().equals(ORIGIN + "index.html");
@@ -180,6 +203,16 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PICK_RECEIPT) {
+            ValueCallback<android.net.Uri[]> cb = receiptCallback;
+            receiptCallback = null;
+            if (cb != null) {
+                android.net.Uri[] uris = (resultCode == RESULT_OK && data != null && data.getData() != null)
+                        ? new android.net.Uri[]{ data.getData() } : null;
+                cb.onReceiveValue(uris);
+            }
+            return;
+        }
         if (requestCode != OPEN_CSV && requestCode != SAVE_CSV) return;
         final String export = pendingCSV;
         if (requestCode == SAVE_CSV) pendingCSV = null;
