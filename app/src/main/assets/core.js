@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -82,6 +82,19 @@
     }
     result.forecastSettings=forecastOptions(raw.forecastSettings);
     result.hiddenCards=list(raw.hiddenCards).filter(x=>['setup','budget','spending','transactions','worth','goals','recurring','investments','advice'].includes(x));
+    // Saved activity filters (roadmap #34).
+    result.savedFilters=list(raw.savedFilters).slice(0,50).map((f,i)=>{
+      if(!f||typeof f!=='object')throw Error('Invalid saved filter.');
+      const name=label(f.name||('Filter '+(i+1))).slice(0,40);
+      if(!name)throw Error('Saved filter needs a name.');
+      const q=f.filters||{};
+      return {id:'filter-'+i,name,filters:{
+        query:String(q.query||'').slice(0,80),type:['all','expense','income','transfer'].includes(q.type)?q.type:'all',
+        account:String(q.account||'all').slice(0,80),category:String(q.category||'all').slice(0,80),
+        tag:String(q.tag||'all').slice(0,30),min:q.min===''||q.min==null?'':number(q.min,0),max:q.max===''||q.max==null?'':number(q.max,0),
+        start:q.start||'',end:q.end||''}};
+    });
+    result.savedFilters.forEach(f=>{if(f.filters.start&&!validDate(f.filters.start))throw Error('Invalid saved filter date.');if(f.filters.end&&!validDate(f.filters.end))throw Error('Invalid saved filter date.');});
     result.wallet=walletData(raw.wallet);
     return result;
   }
@@ -279,7 +292,10 @@
     const taxDelta = number(x.taxDelta || 0);
     if (taxDelta > amount || (taxDelta && (x.type !== 'income' || !delta))) throw Error('Invalid tax reserve adjustment.');
     const walletId=/^[a-f0-9]{64}$/.test(x.walletId||'')?x.walletId:'',walletRevision=/^[a-f0-9]{64}$/.test(x.walletRevision||'')?x.walletRevision:'';
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta};
+    // Tags and notes (roadmap #29): free-form tags across categories.
+    const tags = Array.isArray(x.tags) ? [...new Set(x.tags.map(t => String(t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30)).filter(Boolean))].slice(0, 10).sort() : [];
+    const note = String(x.note || '').trim().slice(0, 280);
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note};
   }
   function saveTransaction(state, input) {
     const t = transaction(input);

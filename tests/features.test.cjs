@@ -230,3 +230,34 @@ test('low-season runway converts cash and burn into months or indefinite',()=>{
  assert.equal(C.avgMonthly(s3,'income','2026-10-01',3),3000);
  assert.equal(C.avgMonthly(s3,'expense','2026-10-01',3),1200);
 });
+
+test('tags and notes are normalized on transactions',()=>{
+ const s=C.blank();
+ C.saveTransaction(s,{id:'a',label:'Coffee',type:'expense',amount:5,date:'2026-09-18',category:'Dining',tags:['Work','work','client-meeting!',''],note:'  Team standup  '});
+ const t=s.transactions[0];
+ assert.deepEqual(t.tags,['client-meeting','work']);
+ assert.equal(t.note,'Team standup');
+ // Too many / too long tags are trimmed to 10 x 30 chars.
+ C.saveTransaction(s,{id:'b',label:'X',type:'expense',amount:1,date:'2026-09-18',tags:Array.from({length:15},(_,i)=>'tag'+i+'-'.repeat(40))});
+ assert.equal(s.transactions[1].tags.length,10);
+ assert.ok(s.transactions[1].tags.every(x=>x.length<=30));
+ // Survives a normalize round trip.
+ const r=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.deepEqual(r.transactions[0].tags,['client-meeting','work']);
+ assert.equal(r.transactions[0].note,'Team standup');
+});
+
+test('saved filters validate and round-trip',()=>{
+ const s=C.blank();
+ s.savedFilters.push({id:'f1',name:'Big dining',filters:{query:'',type:'expense',account:'all',category:'Dining',tag:'all',min:20,max:'',start:'',end:''}});
+ const r=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.equal(r.savedFilters.length,1);
+ assert.equal(r.savedFilters[0].name,'Big dining');
+ assert.equal(r.savedFilters[0].filters.min,20);
+ assert.equal(r.savedFilters[0].filters.category,'Dining');
+ // Invalid filters are rejected; blank names are auto-named on import.
+ const raw=JSON.parse(JSON.stringify(s));
+ assert.equal(C.normalize({...raw,savedFilters:[{name:'',filters:{}}]}).savedFilters[0].name,'Filter 1');
+ assert.throws(()=>C.normalize({...raw,savedFilters:'nope'}));
+ assert.throws(()=>C.normalize({...raw,savedFilters:[{name:'x',filters:{start:'bad-date'}}]}));
+});

@@ -1,3 +1,8 @@
+# Cash Compass 1.11.0 preview
+
+- **Tags and notes (roadmap #29):** every transaction can now carry up to 10 free-form tags plus a note. Tags appear as chips on each Activity row, are included in search, and can be filtered — handy for tracking things like #reimbursable, #tax-deductible, or #vacation across categories.
+- **Advanced search and saved filters (roadmap #34):** Activity now filters by tag and by amount range (min/max) alongside the existing search, type, account, category, and date filters. Any combination can be saved as a named one-tap view, then applied or deleted from the Saved views row.
+
 # Cash Compass 1.10.0 preview
 
 - **Low-season runway (roadmap #13):** the Plan tab now answers "how long does my cash last if work slows down?" Drag the income slider to model a lower monthly income, adjust monthly essential spending (prefilled from your recent average), and see your runway in months and weeks — counting only spendable cash after goal, tax, and buffer reserves.

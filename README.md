@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.10.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.11.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.11.0: Tags, notes, and saved views
+
+- **Tags and notes** (roadmap #29): every transaction can now carry up to 10 free-form tags and a note. Tags show as chips on each row and are searchable.
+- **Advanced search and saved filters** (roadmap #34): the Activity tab filters by tag and amount range (min/max) in addition to everything before. Save any filter combination as a named one-tap view, apply or delete views anytime.
 
 ## New in 1.10.0: Low-season runway and forecast range
 
