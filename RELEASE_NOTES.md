@@ -1,3 +1,8 @@
+# Cash Compass 1.15.0 preview
+
+- **Auto-detect transfers on import (roadmap #32):** the CSV preview now spots expense/income row pairs for the same amount across different accounts within 3 days and offers to import each pair as a single transfer instead of two transactions. Pairs are ticked by default and can be unticked individually; duplicate-skipping still applies.
+- **Tax set-aside tracker (roadmap #23):** tick “Untaxed income” on freelance/gig payments. Reports → Tax set-aside shows this year's untaxed income, the target at your set-aside rate (editable, default 25%), what's already reserved via tax reserves, and the remaining gap — plus the next quarterly estimated-tax deadline. An optional reminder in You → settings surfaces a home-tab notice as the deadline approaches.
+
 # Cash Compass 1.14.0 preview
 
 - **Emergency fund tracker (roadmap #25):** a new section beside the low-season runway shows how many months of essential spending your spendable cash covers — with a progress bar toward your target (default 3 months) and the amount still needed. It uses the same cash pool as the runway and shares its essential-spending figure, so the two stay in sync.

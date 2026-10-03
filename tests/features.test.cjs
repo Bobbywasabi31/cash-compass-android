@@ -402,3 +402,51 @@ test('reimbursable tracking sums owed and logs paybacks',()=>{
  assert.equal(s2.transactions.find(t=>t.label==='Flight').reimbursed,150);
  assert.equal(C.reimbursableSummary(s2).owed,250);
 });
+
+test('CSV import auto-detects transfer pairs across accounts',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ C.saveAccount(s,{id:'savings',label:'Savings',type:'savings',balance:500});
+ const csv='date,description,amount,account\n2026-09-10,Transfer to savings,-500,Checking\n2026-09-11,Transfer from checking,500,Savings\n2026-09-12,Coffee,-4.50,Checking';
+ const out=C.previewCSV(s,csv,'checking',true);
+ assert.equal(out.length,3);
+ assert.equal(out.transferPairs.length,1);
+ const p=out.transferPairs[0];
+ assert.equal(p.amount,500);
+ assert.equal(p.fromAccount,'checking');
+ assert.equal(p.toAccount,'savings');
+ assert(out[0].transferPair && out[1].transferPair);
+ assert(!out[2].transferPair);
+ // Same-account rows never pair; amounts must match to the cent.
+ const csv2='date,description,amount,account\n2026-09-10,X,-500,Checking\n2026-09-11,Y,500,Checking\n2026-09-12,Z,-500.01,Savings';
+ const out2=C.previewCSV(s,csv2,'checking',true);
+ assert.equal(out2.transferPairs.length,0);
+ // Importing the pair as a transfer moves money once, not twice.
+ C.saveTransaction(s,{id:'t1',label:out[p.expense].transaction.label,type:'transfer',amount:p.amount,date:p.date,accountId:p.fromAccount,toAccountId:p.toAccount,adjust:true});
+ assert.equal(s.accounts.find(a=>a.id==='checking').balance,500);
+ assert.equal(s.accounts.find(a=>a.id==='savings').balance,1000);
+ assert.equal(s.transactions.filter(t=>t.type==='transfer').length,1);
+});
+
+test('tax set-aside tracks untaxed income against a rate',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:2000});
+ s.profile.sideTaxRate=25;
+ C.saveTransaction(s,{id:'a',label:'Client A',type:'income',amount:4000,date:'2026-03-10',category:'Freelance',accountId:'checking',untaxed:true,taxDelta:500});
+ C.saveTransaction(s,{id:'b',label:'Salary',type:'income',amount:5000,date:'2026-03-15',category:'Paycheck',accountId:'checking'});
+ C.saveTransaction(s,{id:'c',label:'Client B',type:'income',amount:2000,date:'2025-12-10',category:'Freelance',accountId:'checking',untaxed:true});
+ const t=C.taxSetAside(s,'2026');
+ assert.equal(t.income,4000);
+ assert.equal(t.owed,1000);
+ assert.equal(t.reserved,500);
+ assert.equal(t.remaining,500);
+ assert.equal(t.rate,25);
+ assert(t.nextDeadline >= '2026-01-15');
+ // untaxed flag only sticks to income and round-trips.
+ assert.equal(s.transactions.find(t=>t.id==='a').untaxed,true);
+ assert.equal(s.transactions.find(t=>t.id==='b').untaxed,false);
+ const s2=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.equal(s2.profile.sideTaxRate,25);
+ assert.equal(C.taxSetAside(s2,'2026').owed,1000);
+ assert.throws(()=>C.taxSetAside(s,'20'));
+});

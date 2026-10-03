@@ -27,14 +27,14 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
     const p = raw.profile || { name: raw.name, balance: raw.balance, hourlyRate: raw.rate, taxRate: raw.tax };
     const result = blank();
     result.demo = raw.demo === true; result.reminders=raw.reminders===true;
-    result.profile = { name: label(p.name), balance: number(p.balance, -MAX), hourlyRate: number(p.hourlyRate), taxRate: number(p.taxRate, 0, 100), buffer: number(p.buffer || 0), taxHeld: number(p.taxHeld || 0) };
+    result.profile = { name: label(p.name), balance: number(p.balance, -MAX), hourlyRate: number(p.hourlyRate), taxRate: number(p.taxRate, 0, 100), buffer: number(p.buffer || 0), taxHeld: number(p.taxHeld || 0), sideTaxRate: number(p.sideTaxRate == null ? 25 : p.sideTaxRate, 0, 100), taxReminder: p.taxReminder === true };
     ['incomes', 'bills', 'goals'].forEach(kind => {
       if (!Array.isArray(raw[kind]) || raw[kind].length > 10000) throw Error('Invalid ' + kind + ' list.');
       result[kind] = raw[kind].map((item, index) => {
@@ -311,7 +311,9 @@
     // Reimbursable tracking (roadmap #37): expenses you expect to be paid back.
     const reimbursable = x.reimbursable === true && x.type === 'expense';
     const reimbursed = reimbursable ? number(x.reimbursed || 0, 0, amount) : 0;
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf, reimbursable, reimbursed};
+    // Tax set-aside tracker (roadmap #23): untaxed side income.
+    const untaxed = x.untaxed === true && x.type === 'income';
+    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, refundOf, reimbursable, reimbursed, untaxed};
   }
   function saveTransaction(state, input) {
     const t = transaction(input);
@@ -465,6 +467,23 @@
     if (!t || t.type !== 'expense' || !t.reimbursable) throw Error('Reimbursable expense not found.');
     t.reimbursed = dollars(Math.min(cents(t.amount), Math.max(0, cents(number(amount)))));
     return t;
+  }
+  // Tax set-aside tracker (roadmap #23): untaxed side income, the set-aside
+  // target at the user's rate, what's reserved via tax reserves, and the
+  // next quarterly estimated-tax deadline.
+  function taxSetAside(state, year = localDate().slice(0, 4)) {
+    if (!/^\d{4}$/.test(year)) throw Error('Enter a valid year.');
+    const rate = number(state.profile.sideTaxRate == null ? 25 : state.profile.sideTaxRate, 0, 100);
+    const untaxed = (state.transactions || []).filter(t => t.type === 'income' && t.untaxed && t.date.slice(0, 4) === year);
+    const incomeCents = untaxed.reduce((s, t) => s + cents(t.amount), 0);
+    const reservedCents = untaxed.reduce((s, t) => s + cents(t.taxDelta || 0), 0);
+    const owedCents = Math.round(incomeCents * rate / 100);
+    const deadlines = [`${year}-01-15`, `${year}-04-15`, `${year}-06-15`, `${year}-09-15`, `${Number(year) + 1}-01-15`];
+    const today = localDate();
+    const nextDeadline = deadlines.find(d => d >= today) || null;
+    return { year, rate, income: dollars(incomeCents), reserved: dollars(reservedCents), owed: dollars(owedCents),
+      remaining: dollars(Math.max(0, owedCents - reservedCents)),
+      nextDeadline, daysUntil: nextDeadline ? daysBetween(today, nextDeadline) : null };
   }
   // Merchant-to-category memory (roadmap #3): remember the category and account
   // used for each merchant so future transactions can pre-fill them. Learned
@@ -632,6 +651,28 @@
     if(rows.length>10001)throw Error('Import at most 10,000 transactions.');
     return rows;
   }
+  // Auto-detect transfers on import (roadmap #32): an expense row and an
+  // income row for the same amount across different accounts within 3 days
+  // is usually one transfer recorded twice.
+  function detectTransferPairs(rows) {
+    const used = new Set(), pairs = [];
+    rows.forEach((r, i) => {
+      if (used.has(i) || r.transaction.type !== 'expense') return;
+      const amt = cents(r.transaction.amount);
+      const j = rows.findIndex((s, k) => k !== i && !used.has(k) && s.transaction.type === 'income' &&
+        cents(s.transaction.amount) === amt && s.transaction.accountId !== r.transaction.accountId &&
+        Math.abs(daysBetween(r.transaction.date, s.transaction.date)) <= 3);
+      if (j < 0) return;
+      used.add(i); used.add(j);
+      const id = 'pair-' + pairs.length;
+      r.transferPair = id; rows[j].transferPair = id;
+      pairs.push({ id, expense: i, income: j, amount: r.transaction.amount,
+        date: r.transaction.date <= rows[j].transaction.date ? r.transaction.date : rows[j].transaction.date,
+        fromAccount: r.transaction.accountId, toAccount: rows[j].transaction.accountId,
+        label: r.transaction.label || 'Transfer' });
+    });
+    return pairs;
+  }
   function previewCSV(state,text,defaultAccountId,adjust=false) {
     const rows=parseCSV(text);if(rows.length<2)throw Error('Include a header and at least one transaction.');
     const headers=rows.shift().map(x=>x.trim().toLowerCase());
@@ -641,7 +682,7 @@
     const get=(r,...names)=>{const i=locate(...names);return i<0?'':(r[i]||'').trim();};
     const signature=t=>JSON.stringify([t.date,t.label.toLowerCase(),t.type,cents(t.amount),t.accountId,t.toAccountId||'']);
     const seen=new Set(state.transactions.map(signature));
-    return rows.map((r,i)=>{
+    const out = rows.map((r,i)=>{
       try {
         if(r.length!==headers.length)throw Error('Column count does not match the header.');
         const signed=Number(r[amountCol].trim());if(!r[amountCol].trim()||!Number.isFinite(signed)||signed===0)throw Error('Use a nonzero numeric amount without currency symbols.');
@@ -656,6 +697,8 @@
         const key=signature(t),duplicate=seen.has(key);seen.add(key);return {transaction:t,duplicate};
       } catch(e){throw Error('CSV row '+(i+2)+': '+e.message);}
     });
+    out.transferPairs = detectTransferPairs(out);
+    return out;
   }
   function exportCSV(state) {
     const quote=value=>'"'+String(value).replace(/^[=+@\-\t\r]/,match=>"'"+match).replace(/"/g,'""')+'"';
@@ -938,7 +981,7 @@
 
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
-  emergencyFund, reimbursableSummary, markReimbursed, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;

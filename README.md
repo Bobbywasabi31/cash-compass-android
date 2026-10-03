@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.14.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.15.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.15.0: Transfer auto-detect and tax set-aside
+
+- **Auto-detect transfers on import** (roadmap #32): the CSV preview now spots expense/income row pairs for the same amount across different accounts within 3 days and offers to import each pair as a single transfer instead of two transactions — no more double-counted moves between your accounts.
+- **Tax set-aside tracker** (roadmap #23): tick “Untaxed income” on freelance/gig payments. Reports → Tax set-aside shows this year's untaxed income, what you should have set aside at your rate (adjustable, default 25%), what's reserved via tax reserves, and what's still missing — plus the next quarterly estimated-tax deadline, with an optional reminder notice on your home tab.
 
 ## New in 1.14.0: Emergency fund and reimbursable tracking
 
