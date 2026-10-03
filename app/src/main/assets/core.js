@@ -85,7 +85,41 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Net worth milestones (roadmap #50).
+    // Loan amortization tracker (roadmap #51): balance, rate, schedule,
+  // and extra-payment effect.
+  function loanAmortization(principal, annualRate, monthlyPayment, extraPayment = 0) {
+    principal = number(principal, 0.01);
+    annualRate = number(annualRate, 0, 100);
+    monthlyPayment = number(monthlyPayment, 0.01);
+    extraPayment = number(extraPayment, 0);
+    const monthlyRate = annualRate / 100 / 12;
+    const simulate = extra => {
+      let balance = principal, month = 0, totalInterest = 0;
+      const schedule = [];
+      const payment = monthlyPayment + extra;
+      while (balance > 0.005 && month < 600) {
+        month++;
+        const interest = balance * monthlyRate;
+        totalInterest += interest;
+        const principalPaid = Math.min(balance, payment - interest);
+        if (principalPaid < 0) throw Error('Payment does not cover monthly interest.');
+        balance -= principalPaid;
+        if (month % 12 === 0 || balance <= 0.005) {
+          schedule.push({ month, balance: Math.max(0, balance), interestPaid: totalInterest });
+        }
+      }
+      return { months: month, totalInterest, schedule };
+    };
+    const base = simulate(0);
+    const withExtra = extraPayment > 0 ? simulate(extraPayment) : null;
+    return {
+      principal, annualRate, monthlyPayment, extraPayment,
+      base, withExtra,
+      interestSaved: withExtra ? base.totalInterest - withExtra.totalInterest : 0,
+      monthsSaved: withExtra ? base.months - withExtra.months : 0
+    };
+  }
+  // Net worth milestones (roadmap #50).
     result.milestones = list(raw.milestones).map((x,i) => {
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
@@ -686,6 +720,40 @@
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
   }
+  // Loan amortization tracker (roadmap #51): balance, rate, schedule,
+  // and extra-payment effect.
+  function loanAmortization(principal, annualRate, monthlyPayment, extraPayment = 0) {
+    principal = number(principal, 0.01);
+    annualRate = number(annualRate, 0, 100);
+    monthlyPayment = number(monthlyPayment, 0.01);
+    extraPayment = number(extraPayment, 0);
+    const monthlyRate = annualRate / 100 / 12;
+    const simulate = extra => {
+      let balance = principal, month = 0, totalInterest = 0;
+      const schedule = [];
+      const payment = monthlyPayment + extra;
+      while (balance > 0.005 && month < 600) {
+        month++;
+        const interest = balance * monthlyRate;
+        totalInterest += interest;
+        const principalPaid = Math.min(balance, payment - interest);
+        if (principalPaid < 0) throw Error('Payment does not cover monthly interest.');
+        balance -= principalPaid;
+        if (month % 12 === 0 || balance <= 0.005) {
+          schedule.push({ month, balance: Math.max(0, balance), interestPaid: totalInterest });
+        }
+      }
+      return { months: month, totalInterest, schedule };
+    };
+    const base = simulate(0);
+    const withExtra = extraPayment > 0 ? simulate(extraPayment) : null;
+    return {
+      principal, annualRate, monthlyPayment, extraPayment,
+      base, withExtra,
+      interestSaved: withExtra ? base.totalInterest - withExtra.totalInterest : 0,
+      monthsSaved: withExtra ? base.months - withExtra.months : 0
+    };
+  }
   // Net worth milestones (roadmap #50): progress and projected date based
   // on recent savings rate.
   function milestoneProgress(state, milestone) {
@@ -1079,7 +1147,22 @@
     if(!['stock','bond','fund','crypto','other'].includes(x.assetClass))throw Error('Choose an asset class.');
     const price=number(x.price),cost=number(x.cost);
     number(quantity*price);number(quantity*cost);
-    return {id:x.id,label:label(x.label),symbol:label(x.symbol).toUpperCase(),assetClass:x.assetClass,quantity:Math.round(quantity*1000000)/1000000,price,cost,updated:validDate(x.updated)?x.updated:localDate()};
+    // Cost basis lots (roadmap #52): multiple purchase lots per holding.
+    const lots=list(x.lots).map((l,i)=>{
+      if(!l||typeof l!=='object')throw Error('Invalid lot.');
+      const q=Number(l.quantity);
+      if(!Number.isFinite(q)||q<=0||q>1000000)throw Error('Enter a lot quantity above zero.');
+      if(l.date&&!validDate(l.date))throw Error('Enter a valid lot date.');
+      return {id:'lot-'+i,date:l.date||localDate(),quantity:Math.round(q*1000000)/1000000,cost:number(l.cost,0)};
+    });
+    return {id:x.id,label:label(x.label),symbol:label(x.symbol).toUpperCase(),assetClass:x.assetClass,quantity:Math.round(quantity*1000000)/1000000,price,cost,lots,updated:validDate(x.updated)?x.updated:localDate()};
+  }
+  // Unrealized gain/loss from entered prices (roadmap #52).
+  function holdingGains(h) {
+    const basis=dollars(cents(h.quantity)*cents(h.cost)/100);
+    const value=dollars(cents(h.quantity)*cents(h.price)/100);
+    const gain=dollars(cents(value)-cents(basis));
+    return {basis,value,gain,gainPct:cents(basis)>0?Math.round(cents(gain)/cents(basis)*10000)/100:0};
   }
   function portfolio(state) {
     const rows=(state.holdings||[]).map(h=>({...h,value:number(h.quantity*h.price),basis:number(h.quantity*h.cost)}));
@@ -1421,7 +1504,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

@@ -1,3 +1,8 @@
+# Cash Compass 1.28.0 preview
+
+- **Loan amortization tracker (roadmap #51):** Plan → Loan amortization shows payoff schedule, total interest, and extra-payment effect (interest and months saved).
+- **Holdings cost basis and gain/loss (roadmap #52):** Investments → Lots tracks purchase lots per holding with weighted average cost basis.
+
 # Cash Compass 1.27.0 preview
 
 - **Savings goal auto-allocation (roadmap #49):** each goal shows the per-paycheck contribution needed to hit its deadline and whether you're on track.

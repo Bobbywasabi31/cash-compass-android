@@ -793,3 +793,39 @@ test('milestoneProgress tracks net worth targets',()=>{
  const n=C.normalize(s);
  assert.equal(n.milestones.length,1);
 });
+
+test('loanAmortization calculates schedule and extra payment effect',()=>{
+ const r=C.loanAmortization(10000,6,200,50);
+ assert.ok(r.base.months>0);
+ assert.ok(r.base.totalInterest>0);
+ assert.ok(r.withExtra.months<r.base.months);
+ assert.ok(r.interestSaved>0);
+ assert.ok(r.monthsSaved>0);
+ assert.ok(r.base.schedule.length>0);
+ const noExtra=C.loanAmortization(10000,6,200,0);
+ assert.equal(noExtra.withExtra,null);
+ assert.equal(noExtra.interestSaved,0);
+ assert.throws(()=>C.loanAmortization(10000,6,10,0));
+});
+
+test('holdingGains calculates unrealized gain/loss',()=>{
+ const h={quantity:10,price:150,cost:100};
+ const g=C.holdingGains(h);
+ assert.equal(g.basis,1000);
+ assert.equal(g.value,1500);
+ assert.equal(g.gain,500);
+ assert.equal(g.gainPct,50);
+ const loss=C.holdingGains({quantity:10,price:80,cost:100});
+ assert.equal(loss.gain,-200);
+ assert.equal(loss.gainPct,-20);
+});
+
+test('holding supports cost basis lots',()=>{
+ const h=C.holding({id:'h1',label:'Test',symbol:'TST',assetClass:'stock',quantity:10,price:150,cost:100,lots:[{date:'2026-01-15',quantity:5,cost:90},{date:'2026-06-15',quantity:5,cost:110}]});
+ assert.equal(h.lots.length,2);
+ assert.equal(h.lots[0].cost,90);
+ const s=C.blank();
+ s.holdings.push(h);
+ const n=C.normalize(s);
+ assert.equal(n.holdings[0].lots.length,2);
+});

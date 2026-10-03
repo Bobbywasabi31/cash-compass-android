@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.27.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.28.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.28.0: Loan amortization and cost basis lots
+
+- **Loan amortization tracker** (roadmap #51): Plan → Loan amortization shows payoff schedule, total interest, and how extra monthly payments save interest and time.
+- **Holdings cost basis and gain/loss** (roadmap #52): Investments → Lots tracks purchase lots per holding with weighted average cost. Unrealized gain/loss already shown from entered prices.
 
 ## New in 1.27.0: Goal auto-allocation and net worth milestones
 
