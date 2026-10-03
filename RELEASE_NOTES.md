@@ -1,3 +1,8 @@
+# Cash Compass 1.42.0 preview
+
+- **Onboarding wizard (roadmap #83):** 4-step setup for new users.
+- **Privacy mode (roadmap #84):** Blur balances until tapped.
+
 # Cash Compass 1.41.0 preview
 
 - **Themes (roadmap #82):** System, Light, Dark, High contrast in Profile.

@@ -100,3 +100,12 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
 @media (prefers-color-scheme: dark){
  [data-theme="system"]{--ink:#e8e6e3;--muted:#a8a5a0;--paper:#1a1a1a;--white:#2a2a2a;--line:#3a3a3a;--pine:#4ade80;--pine-deep:#22c55e;--mint:#1e3a2a;--coral:#fb923c}
 }
+
+/* Onboarding wizard (roadmap #83) */
+.onboarding{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px}
+.onboarding-card{background:white;border-radius:16px;padding:24px;max-width:400px;width:100%}
+.onboarding-card h2{margin:0 0 12px}
+.onboarding-card p{margin:0 0 16px;color:var(--muted)}
+/* Privacy mode (roadmap #84) */
+.privacy-mode .money,.privacy-mode .stat strong,.privacy-mode .summary b{filter:blur(8px);user-select:none}
+.privacy-mode .money:hover,.privacy-mode .stat strong:hover,.privacy-mode .summary b:hover{filter:none}

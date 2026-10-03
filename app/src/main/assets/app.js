@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.41.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.42.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -270,6 +270,11 @@ async function shareSummary(){
   }
 }
 function render() {
+  // Show onboarding for new users
+  if (!localStorage.getItem('cc-onboarded') && !state.transactions.length && !state.incomes.length && onboardingStep < 5) {
+    app.innerHTML = onboardingWizard();
+    return;
+  }
   app.innerHTML = ({ home, plan, goals, coach, profile, transactions, budgets, accounts, reports, cashflow, investments, forecasting, wallet })[tab]() + nav() + modal();
   if (dialog) { const el = app.querySelector('.modal input, .modal textarea, .modal .primary'); if (el) el.focus(); }
 }
@@ -490,7 +495,7 @@ const badge=(text,positive=true)=>`<span class="badge ${positive?'gain':'loss'}"
 function stat(label,value,cls='',explain=null){const btn=explain?` data-action="explain" data-kind="${explain}" role="button" tabindex="0" aria-label="Explain ${esc(label)}" title="Tap to see calculation"`:'';return `<div class="stat ${cls}${explain?' clickable':''}"${btn}><strong>${value}</strong><span>${label}</span></div>`;}
 function panel(title,body,actions='',cls=''){return `<section class="panel ${cls}"><div class="panel-head"><h2>${title}</h2>${actions}</div><div class="panel-body">${body}</div></section>`;}
 function routeButton(key,title){return `<button class="quiet" data-tab="${key}">${title||destinations.find(d=>d[0]===key)[2]} <span aria-hidden="true">→</span></button>`;}
-function header(title,subtitle){return `<header class="workspace-top"><button class="menu-button" data-action="menu" aria-label="Open navigation" aria-expanded="${menuOpen}">☰</button><span class="mobile-brand">Cash Compass</span><button class="icon-btn" data-tab="profile" aria-label="Your settings">⚙</button></header>${state.demo?'<div class="notice">Sample plan · fictional entries <button data-action="fresh" class="text-btn">Start my own plan</button></div>':''}${storageError?`<div class="notice danger" role="alert">${esc(storageError)}</div>`:''}<div class="page-heading"><h1>${title}</h1></div><p class="subhead">${subtitle}</p>`;}
+function header(title,subtitle){return `<header class="workspace-top"><button class="menu-button" data-action="menu" aria-label="Open navigation" aria-expanded="${menuOpen}">☰</button><span class="mobile-brand">Cash Compass</span>${privacyToggle()}<button class="icon-btn" data-tab="profile" aria-label="Your settings">⚙</button></header>${state.demo?'<div class="notice">Sample plan · fictional entries <button data-action="fresh" class="text-btn">Start my own plan</button></div>':''}${storageError?`<div class="notice danger" role="alert">${esc(storageError)}</div>`:''}<div class="page-heading"><h1>${title}</h1></div><p class="subhead">${subtitle}</p>`;}
 function nav(){const links=destinations.map(([key,icon,title])=>`<button data-tab="${key}" ${tab===key?'class="active" aria-current="page"':''}><span aria-hidden="true">${icon}</span>${title}${key==='plan'&&state.bills.length?`<small>${state.bills.length}</small>`:''}</button>`).join('');return `<div class="drawer-shade ${menuOpen?'open':''}" data-dismiss-menu="true"></div><aside class="sidebar ${menuOpen?'open':''}"><div class="side-brand"><b>◈</b> Cash Compass<button class="menu-button" data-action="menu" aria-label="Close navigation">×</button></div><nav aria-label="All sections">${links}</nav><div class="side-footer"><span class="offline-dot"></span> Offline · your device<br><small>Version ${APP_VERSION} preview</small></div></aside><nav class="nav" aria-label="Main navigation">${[['home','⌂','Dashboard'],['transactions','▣','Activity'],['budgets','▧','Budget']].map(([key,icon,title])=>`<button data-tab="${key}" ${tab===key?'class="active" aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span>${title}</button>`).join('')}<button data-action="menu" aria-expanded="${menuOpen}"><span class="nav-icon" aria-hidden="true">☰</span>More</button></nav>`;}
 function lineChart(series,labels,title,colors=['#00a2bd','#ff692f']) {
   if(!labels.length)return '<p class="empty">History starts when you save a balance or holding. No earlier values are assumed.</p>';
@@ -544,6 +549,32 @@ function annotationsSection(){
 function creditCardsSection(){
  const cards = (state.creditCards || []).map(c => C.creditCardStatus(state, c));
  return panel('Credit cards', `${cards.length?cards.map(c=>`<article class="account-row"><span class="merchant-mark">▣</span><div><b>${esc(c.label)}</b><small>${c.last4?'•••• '+c.last4+' · ':''}Statement ${dateText(c.statementDate)} · Due ${dateText(c.dueDate)}${c.overdue?' · <b class="danger">OVERDUE</b>':c.dueSoon?` · <b class="danger">${c.daysUntilDue}d left</b>`:''}</small></div><strong>${money(c.balance)}</strong><div class="row-actions"><button class="quiet" data-action="cc-plan" data-id="${c.id}">Plan payment</button><button data-edit="${c.id}" data-kind="creditCards">Edit</button><button class="quiet" data-remove="${c.id}" data-kind="creditCards">×</button></div></article>`).join(''):'<p class="small">Track statement dates, due dates, and minimums.</p>'}<button class="primary" data-action="add" data-kind="creditCards">+ Add card</button><div id="ccPlan"></div>`);
+}
+// Onboarding wizard (roadmap #83).
+let onboardingStep = 0;
+function onboardingWizard(){
+ const steps = [
+  { title: 'Welcome to Cash Compass', body: 'Let\'s set up your plan in 4 quick steps. Your data stays on this device.' },
+  { title: 'Step 1: Your cash', body: 'Enter your current total cash across all accounts. You\'ll add individual accounts next.', form: 'cash' },
+  { title: 'Step 2: Payday', body: 'When is your next payday and how much do you expect?', form: 'payday' },
+  { title: 'Step 3: Bills', body: 'Add your regular bills so we can reserve for them.', form: 'bills' },
+  { title: 'Step 4: Safety buffer', body: 'How much should we always keep as a buffer?', form: 'buffer' },
+ ];
+ const s = steps[onboardingStep];
+ if (onboardingStep >= steps.length) {
+   localStorage.setItem('cc-onboarded', '1');
+   return '';
+ }
+ return `<div class="onboarding"><div class="onboarding-card"><h2>${s.title}</h2><p>${s.body}</p>${s.form==='cash'?`<form id="obCashForm" class="form-grid">${amountField('balance','Total cash',state.profile.balance||0)}<button class="primary">Continue</button></form>`:''}${s.form==='payday'?`<form id="obPaydayForm" class="form-grid">${field('date','Next payday',C.localDate(),'date')}${amountField('amount','Expected amount',0)}<button class="primary">Continue</button></form>`:''}${s.form==='bills'?`<p class="small">You can add bills in Recurring later. For now, let's continue.</p><button class="primary" data-action="ob-next">Continue</button>`:''}${s.form==='buffer'?`<form id="obBufferForm" class="form-grid">${amountField('buffer','Safety buffer',state.profile.buffer||0)}<button class="primary">Finish setup</button></form>`:''}${onboardingStep===0?'<button class="primary" data-action="ob-next">Get started</button>':''}${onboardingStep>0?'<button class="quiet" data-action="ob-skip">Skip setup</button>':''}</div></div>`;
+}
+// Privacy mode (roadmap #84).
+function privacyToggle(){
+ const enabled = localStorage.getItem('cc-privacy') === '1';
+ return `<button class="quiet" data-action="privacy" aria-pressed="${enabled}">${enabled?'👁️ Show balances':'🙈 Hide balances'}</button>`;
+}
+function applyPrivacy(){
+ const enabled = localStorage.getItem('cc-privacy') === '1';
+ document.body.classList.toggle('privacy-mode', enabled);
 }
 function transactionRows(){const min=txMin===''?null:Number(txMin),max=txMax===''?null:Number(txMax);return state.transactions.filter(t=>(transactionType==='all'||t.type===transactionType)&&(txAccount==='all'||t.accountId===txAccount||t.toAccountId===txAccount)&&(!txCategory||t.category.toLowerCase().includes(txCategory.toLowerCase()))&&(txTag==='all'||(t.tags||[]).includes(txTag))&&(!txStart||t.date>=txStart)&&(!txEnd||t.date<=txEnd)&&(min===null||t.amount>=min)&&(max===null||t.amount<=max)&&`${t.label} ${t.category} ${t.date} ${(t.tags||[]).join(' ')} ${t.note||''}`.toLowerCase().includes(transactionQuery.toLowerCase())).sort((a,b)=>txSort==='oldest'?a.date.localeCompare(b.date):txSort==='amount'?b.amount-a.amount:b.date.localeCompare(a.date));}
 function currentTxFilter(){return {query:transactionQuery,type:transactionType,account:txAccount,category:txCategory,tag:txTag,min:txMin,max:txMax,start:txStart,end:txEnd};}
@@ -847,6 +878,9 @@ function redesignClick(b){
  if(b.dataset.action==='cat-delete'){update(next=>{next.customCategories=(next.customCategories||[]).filter(c=>c.id!==b.dataset.id);});render();flash('Category removed.');return true;}
  if(b.dataset.action==='paycheck-add'){const detected=C.detectPaychecks(state),d=detected[Number(b.dataset.index)];if(d){update(next=>{next.incomes.push({id:uid(),label:d.label,amount:d.amount,date:d.lastDate,repeat:d.repeat,category:'Income',accountId:next.accounts[0]?next.accounts[0].id:'cash'});});render();flash('Income schedule added.');}return true;}
  if(b.dataset.action==='cc-plan'){const plan=C.planCardPayment(state,b.dataset.id,state.profile.buffer||0);const el=document.getElementById('ccPlan');if(el)el.innerHTML=`<div class="plan-result"><h4>Payment plan: ${esc(plan.card)}</h4><p><b>${money(plan.amount)}</b> by ${dateText(plan.dueDate)} (${plan.daysUntilDue}d)</p><p>${esc(plan.strategy)}</p>${plan.remaining>0?`<p class="small">Remaining: ${money(plan.remaining)} · Est. monthly interest: ${money(plan.monthlyInterest)}</p>`:''}</div>`;return true;}
+ if(b.dataset.action==='ob-next'){onboardingStep++;render();return true;}
+ if(b.dataset.action==='ob-skip'){localStorage.setItem('cc-onboarded','1');render();return true;}
+ if(b.dataset.action==='privacy'){const enabled=localStorage.getItem('cc-privacy')==='1';localStorage.setItem('cc-privacy',enabled?'0':'1');applyPrivacy();render();return true;}
  if(b.dataset.action==='customize'){dialog={mode:'customize'};render();return true;}
  if(b.dataset.action==='snapshot'){update(next=>C.snapshot(next));render();flash('Today’s balances recorded');return true;}
  if(b.dataset.action==='tx-clear'){transactionQuery='';transactionType='all';txAccount='all';txCategory='';txTag='all';txMin='';txMax='';txStart='';txEnd='';txLimit=100;selectedTransactions.clear();render();return true;}
@@ -899,6 +933,9 @@ function redesignSubmit(id,f){
 else if(id==='annotationForm'){update(next=>{next.annotations=C.addAnnotation(next,f.get('label'),f.get('date'));});render();flash('Annotation added.');}
 else if(id==='categoryForm'){update(next=>{next.customCategories=C.saveCustomCategory(next,f.get('name'),f.get('group'),f.get('color'));});render();flash('Category saved.');}
 else if(id==='ccForm'){const item={id:dialog.item?dialog.item.id:undefined,label:f.get('label'),last4:f.get('last4'),statementDay:f.get('statementDay'),dueDay:f.get('dueDay'),balance:f.get('balance'),minimumDue:f.get('minimumDue'),apr:f.get('apr')};update(next=>{next.creditCards=C.saveCreditCard(next,item);});dialog=null;render();flash('Card saved.');}
+else if(id==='obCashForm'){update(next=>{next.profile.balance=Number(f.get('balance'))||0;});onboardingStep++;render();}
+else if(id==='obPaydayForm'){const amt=Number(f.get('amount'))||0;if(amt>0)update(next=>{next.incomes.push({id:uid(),label:'Paycheck',amount:amt,date:f.get('date'),repeat:'biweekly',category:'Income',accountId:next.accounts[0]?next.accounts[0].id:'cash'});});onboardingStep++;render();}
+else if(id==='obBufferForm'){update(next=>{next.profile.buffer=Number(f.get('buffer'))||0;});onboardingStep++;localStorage.setItem('cc-onboarded','1');render();flash('Setup complete!');}
 else if(id==='aiCoachForm'){const key=String(f.get('aiKey')||'').trim();if(key)localStorage.setItem('cc-ai-key',key);else localStorage.removeItem('cc-ai-key');localStorage.setItem('cc-ai-enabled',f.get('aiEnabled')==='yes'?'1':'0');render();flash('AI coach settings saved.');}
 else if(id==='themeForm'){localStorage.setItem('cc-theme',f.get('theme'));applyTheme();render();flash('Theme saved.');}
 else if(id==='lifeEventForm'){const item=C.lifeEvent({id:dialog.item?dialog.item.id:uid(),label:f.get('label'),month:f.get('month'),amount:f.get('amount'),repeat:f.get('repeat')});if(item.month<=C.localDate().slice(0,7))throw Error('Choose a future month.');update(next=>{const i=next.lifeEvents.findIndex(e=>e.id===item.id);if(i<0)next.lifeEvents.push(item);else next.lifeEvents[i]=item;});dialog=null;}
@@ -977,6 +1014,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)walletRefr
 setInterval(()=>{if(!document.hidden)walletRefresh();},15000);
 
 applyTheme();
+applyPrivacy();
 render();
 syncReminders();
 walletRefresh();
