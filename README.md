@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.16.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.17.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.17.0: Income smoothing and paycheck estimator
+
+- **Income smoothing** (roadmap #15): pick a steady target paycheck in Plan and see, from your recorded months, how much to reserve in high months and draw in lean months — with a month-by-month table and running smoothing balance.
+- **Hours and paycheck estimator** (roadmap #16): enter expected hours to estimate gross, tax, and take-home from your hourly rate and deduction rate, then add the take-home straight into Plan as expected income.
 
 ## New in 1.16.0: Automatic backups and data-loss guards
 

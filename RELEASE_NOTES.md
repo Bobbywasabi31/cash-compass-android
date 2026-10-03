@@ -1,3 +1,8 @@
+# Cash Compass 1.17.0 preview
+
+- **Income smoothing (roadmap #15):** Plan → Income smoothing. Pick a steady target paycheck and see, from your recorded income months, how much to reserve in high months and draw in lean months — with a month-by-month table, totals, and running smoothing balance.
+- **Hours and paycheck estimator (roadmap #16):** Plan → Paycheck estimator. Enter expected hours to estimate gross, tax, and take-home from your hourly rate and deduction rate (from You → settings), then add the take-home directly into Plan as expected income.
+
 # Cash Compass 1.16.0 preview
 
 - **Automatic backups (roadmap #6):** your plan is now backed up automatically — before every restore, reset, or sample-data load, plus once daily. The last 5 are kept in You → Automatic backups with one-tap restore; each shows when and why it was taken.

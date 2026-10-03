@@ -450,3 +450,33 @@ test('tax set-aside tracks untaxed income against a rate',()=>{
  assert.equal(C.taxSetAside(s2,'2026').owed,1000);
  assert.throws(()=>C.taxSetAside(s,'20'));
 });
+
+test('paycheck estimator derives gross, tax, and take-home',()=>{
+ const e=C.paycheckEstimate(28,40,18);
+ assert.equal(e.gross,1120);
+ assert.equal(e.tax,201.6);
+ assert.equal(e.takeHome,918.4);
+ const f=C.paycheckEstimate(15,37.5,0);
+ assert.equal(f.gross,562.5);
+ assert.equal(f.takeHome,562.5);
+ assert.throws(()=>C.paycheckEstimate(-5,40,10));
+ assert.throws(()=>C.paycheckEstimate(20,40,101));
+});
+
+test('income smoothing reserves high months and draws lean months',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:5000});
+ const add=(id,amount,month)=>C.saveTransaction(s,{id,label:'Gig',type:'income',amount,date:month+'-15',category:'Freelance',accountId:'checking',adjust:false});
+ add('a',5000,'2026-04');
+ add('b',2000,'2026-05');
+ add('c',3000,'2026-06');
+ const r=C.incomeSmoothing(s,3000,12);
+ assert.equal(r.count,3);
+ assert.equal(r.targetMonthly,3000);
+ // Apr: +2000 reserve; May: -1000 draw; Jun: even.
+ assert.equal(r.totalReserve,2000);
+ assert.equal(r.totalDraw,1000);
+ assert.equal(r.balance,1000);
+ assert.deepEqual(r.months.map(m=>m.month),['2026-04','2026-05','2026-06']);
+ assert.throws(()=>C.incomeSmoothing(s,0));
+});

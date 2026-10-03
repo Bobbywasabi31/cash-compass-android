@@ -468,6 +468,35 @@
     t.reimbursed = dollars(Math.min(cents(t.amount), Math.max(0, cents(number(amount)))));
     return t;
   }
+  // Hours and paycheck estimator (roadmap #16): gross and take-home from
+  // hourly rate × hours, using the user's deduction rate.
+  function paycheckEstimate(hourlyRate, hours, taxRate) {
+    hourlyRate = number(hourlyRate, 0);
+    hours = number(hours, 0, 1000);
+    taxRate = number(taxRate, 0, 100);
+    const grossCents = Math.round(cents(hourlyRate) * hours);
+    const taxCents = Math.round(grossCents * taxRate / 100);
+    return { hourlyRate, hours, taxRate, gross: dollars(grossCents), tax: dollars(taxCents), takeHome: dollars(grossCents - taxCents) };
+  }
+  // Income smoothing (roadmap #15): pick a steady target paycheck; see how
+  // much to reserve in high months and draw in lean months, from recorded
+  // monthly income. Months with no recorded income are excluded.
+  function incomeSmoothing(state, targetMonthly, monthsBack = 12) {
+    targetMonthly = number(targetMonthly, 0.01);
+    const targetCents = cents(targetMonthly);
+    let balanceCents = 0;
+    const months = monthlyTotals(state, localDate(), monthsBack)
+      .filter(r => r.income > 0)
+      .map(r => {
+        const reserveCents = Math.max(0, cents(r.income) - targetCents);
+        const drawCents = Math.max(0, targetCents - cents(r.income));
+        balanceCents += reserveCents - drawCents;
+        return { month: r.month, income: r.income, reserve: dollars(reserveCents), draw: dollars(drawCents), balance: dollars(balanceCents) };
+      });
+    const totalReserve = dollars(months.reduce((s, m) => s + cents(m.reserve), 0));
+    const totalDraw = dollars(months.reduce((s, m) => s + cents(m.draw), 0));
+    return { targetMonthly, months, count: months.length, totalReserve, totalDraw, balance: dollars(balanceCents) };
+  }
   // Tax set-aside tracker (roadmap #23): untaxed side income, the set-aside
   // target at the user's rate, what's reserved via tax reserves, and the
   // next quarterly estimated-tax deadline.
@@ -981,7 +1010,8 @@
 
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
-  emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
+  paycheckEstimate, incomeSmoothing, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
