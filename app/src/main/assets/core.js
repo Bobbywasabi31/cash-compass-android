@@ -600,6 +600,51 @@
     const combined = dollars(rows.reduce((sum, r) => sum + cents(r.amount), 0));
     return { rows, combined, monthly: dollars(Math.round(cents(combined) / monthsAhead)), monthsAhead };
   }
+  // Proactive insights feed (roadmap #77): dashboard cards derived from the
+  // user's own data — spending spikes, budget pressure, upcoming bills,
+  // runway warnings, and savings trends.
+  function insights(state, today = localDate()) {
+    const cards = [];
+    const mom = monthOverMonth(state);
+    mom.rows.slice(0, 3).forEach(r => {
+      if (r.change <= 0 || r.pct < 20) return;
+      cards.push({ kind: 'spike', title: `${r.category} is ${r.pct}% over last month`,
+        detail: { previous: r.previous, current: r.current }, tone: 'warn' });
+    });
+    const month = today.slice(0, 7);
+    budgetSummary(state, month).rows.forEach(b => {
+      const pct = b.amount > 0 ? Math.round(cents(b.spent) / cents(b.amount) * 100) : 0;
+      if (pct >= 100) cards.push({ kind: 'budget', title: `${b.category} budget exceeded`, detail: { spent: b.spent, budget: b.amount }, tone: 'bad' });
+      else if (pct >= 80) cards.push({ kind: 'budget', title: `${b.category} is ${pct}% of budget`, detail: { spent: b.spent, budget: b.amount }, tone: 'warn' });
+    });
+    const upcoming = (state.bills || []).filter(b => b.date >= today && b.date <= addDays(today, 7));
+    if (upcoming.length) cards.push({ kind: 'bills', title: `${upcoming.length} bill${upcoming.length === 1 ? '' : 's'} due this week`,
+      detail: { bills: upcoming.slice(0, 3).map(b => ({ label: b.label, amount: b.amount })) }, tone: 'info' });
+    const rw = runway(state, avgMonthly(state, 'income', today, 3), avgMonthly(state, 'expense', today, 3));
+    if (!rw.indefinite && rw.weeks < 4) cards.push({ kind: 'runway', title: `Cash covers about ${Math.max(1, Math.round(rw.weeks * 7))} days`,
+      detail: {}, tone: rw.weeks < 2 ? 'bad' : 'warn' });
+    const sr = savingsRate(state, 3);
+    if (sr.overall !== null && sr.rows.length >= 2) {
+      const rates = sr.rows.filter(r => r.rate !== null).map(r => r.rate);
+      if (rates.length >= 2 && rates[rates.length - 1] > rates[0] + 5)
+        cards.push({ kind: 'savings', title: 'Savings rate is climbing', detail: { from: rates[0], to: rates[rates.length - 1] }, tone: 'good' });
+    }
+    return cards.slice(0, 8);
+  }
+  // Auto-drafted monthly review (roadmap #80): structured data for a
+  // data-derived summary of what changed this month.
+  function monthlyReview(state, today = localDate()) {
+    const mom = monthOverMonth(state);
+    const up = mom.rows.filter(r => r.change > 0), down = mom.rows.filter(r => r.change < 0);
+    const sr = savingsRate(state, 2);
+    const cur = sr.rows.find(r => r.month === mom.cur), prev = sr.rows.find(r => r.month === mom.prev);
+    const bills = (state.bills || []).filter(b => b.date.slice(0, 7) === mom.cur);
+    return { month: mom.cur, prev: mom.prev,
+      rose: { count: up.length, total: dollars(up.reduce((s, r) => s + cents(r.change), 0)), top: up[0] || null },
+      fell: { count: down.length, total: dollars(down.reduce((s, r) => s + cents(-r.change), 0)), top: down[0] || null },
+      savings: cur && prev && cur.rate !== null && prev.rate !== null ? { cur: cur.rate, prev: prev.rate, saved: cur.saved, prevSaved: prev.saved } : null,
+      bills: { count: bills.length, total: dollars(bills.reduce((s, b) => s + cents(b.amount), 0)) } };
+  }
   // Top merchants (roadmap #63): expense transactions grouped by merchant,
   // ranked by total spend, with a period filter.
   function topMerchants(state, monthsBack = 12, limit = 10) {
@@ -1188,7 +1233,7 @@
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
-  spendingTrends, monthOverMonth,
+  spendingTrends, monthOverMonth, insights, monthlyReview,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

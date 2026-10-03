@@ -1,3 +1,8 @@
+# Cash Compass 1.23.0 preview
+
+- **Proactive insights feed (roadmap #77):** the Home dashboard now shows insight cards derived from your data — spending spikes, budget pressure at 80%/100%, bills due this week, runway warnings, and savings-rate trends.
+- **Auto-drafted monthly review (roadmap #80):** Reports → Monthly review drafts a "what changed this month" summary — which categories rose or fell, savings-rate comparison, and scheduled bills.
+
 # Cash Compass 1.22.0 preview
 
 - **Spending trends (roadmap #59):** Reports → Spending trends shows per-category totals for each of the last 12 months, with your top 8 categories and monthly totals.

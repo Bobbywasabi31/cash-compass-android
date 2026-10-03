@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.22.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.23.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.23.0: Proactive insights and monthly review
+
+- **Proactive insights feed** (roadmap #77): the Home dashboard now shows insight cards derived from your data — spending spikes (e.g., "Dining is 40% over last month"), budget pressure at 80%/100%, bills due this week, runway warnings, and savings-rate trends.
+- **Auto-drafted monthly review** (roadmap #80): Reports → Monthly review drafts a "what changed this month" summary — which categories rose or fell, savings-rate comparison, and scheduled bills.
 
 ## New in 1.22.0: Spending trends and month-over-month insights
 

@@ -648,3 +648,30 @@ test('month-over-month ranks category changes',()=>{
  assert.equal(transport.change,0);
  assert.equal(C.monthOverMonth(C.blank()).rows.length,0);
 });
+
+test('insights generate proactive cards from data',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Food',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Food',amount:200,date:'2026-10-15',type:'expense',category:'Food',accountId:'cash'});
+ s.budgets.push({id:'b1',category:'Food',amount:150,bucket:'spending',start:'2026-01',rollover:false});
+ s.bills.push({id:'bill1',label:'Rent',amount:1000,date:'2026-10-05',repeat:'monthly',category:'Housing',accountId:'cash',anchorDay:5});
+ const cards=C.insights(s,'2026-10-02');
+ const kinds=cards.map(c=>c.kind);
+ assert.ok(kinds.includes('spike'));
+ assert.ok(kinds.includes('budget'));
+ assert.ok(kinds.includes('bills'));
+ assert.ok(cards.length<=8);
+ assert.equal(C.insights(C.blank()).length,0);
+});
+
+test('monthly review summarizes changes structurally',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Food',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'t2',label:'Food',amount:200,date:'2026-10-15',type:'expense',category:'Food',accountId:'cash'});
+ const r=C.monthlyReview(s,'2026-10-02');
+ assert.equal(r.month,'2026-10');
+ assert.equal(r.rose.count,1);
+ assert.equal(r.rose.total,100);
+ assert.equal(r.rose.top.category,'Food');
+ assert.equal(r.bills.count,0);
+});
