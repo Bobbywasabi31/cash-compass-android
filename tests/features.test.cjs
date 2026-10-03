@@ -1171,3 +1171,18 @@ test('performance: 10k transactions filter/sort',()=>{
  const page=filtered.slice(0,100);
  assert.equal(page.length,100);
 });
+
+test('encrypted backup round-trip', async ()=>{
+ const plaintext = JSON.stringify({profile:{name:'Test'},transactions:[]});
+ const enc = await C.encryptBackup(plaintext, 'correct-horse-123');
+ const parsed = JSON.parse(enc);
+ assert.equal(parsed.format, 'cash-compass-encrypted');
+ const dec = await C.decryptBackup(enc, 'correct-horse-123');
+ assert.equal(dec, plaintext);
+ // Wrong passphrase fails
+ await assert.rejects(()=>C.decryptBackup(enc, 'wrong-passphrase-1'));
+ // Short passphrase rejected
+ await assert.rejects(()=>C.encryptBackup(plaintext, 'short'));
+ // Garbage input rejected
+ await assert.rejects(()=>C.decryptBackup('not json', 'correct-horse-123'));
+});

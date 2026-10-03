@@ -1698,6 +1698,33 @@
   }
   // Quick-add for cash purchases (roadmap #10): minimal amount + category.
   // Two taps: enter amount, pick category. Defaults to today, cash account.
+  // Passphrase-encrypted backups (roadmap #8, partial): AES-GCM via Web Crypto.
+  // Native at-rest encryption still needs Android-side work.
+  async function encryptBackup(plaintext, passphrase) {
+    if (!passphrase || passphrase.length < 8) throw Error('Passphrase must be at least 8 characters.');
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:100000, hash:'SHA-256'}, keyMat, {name:'AES-GCM', length:256}, false, ['encrypt']);
+    const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(plaintext));
+    const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a)));
+    return JSON.stringify({format:'cash-compass-encrypted', version:1, salt:b64(salt), iv:b64(iv), data:b64(ct)});
+  }
+  async function decryptBackup(encryptedJson, passphrase) {
+    const enc = new TextEncoder(), dec = new TextDecoder();
+    const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    let payload;
+    try { payload = JSON.parse(encryptedJson); } catch(e) { throw Error('Not a valid encrypted backup file.'); }
+    if (payload.format !== 'cash-compass-encrypted') throw Error('Not a Cash Compass encrypted backup.');
+    const salt = b64(payload.salt), iv = b64(payload.iv), ct = b64(payload.data);
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:100000, hash:'SHA-256'}, keyMat, {name:'AES-GCM', length:256}, false, ['decrypt']);
+    try {
+      const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
+      return dec.decode(pt);
+    } catch(e) { throw Error('Wrong passphrase or corrupted backup.'); }
+  }
   function quickAdd(state, amount, category) {
     amount = number(amount, 0.01);
     category = label(category || 'Other');
@@ -3314,7 +3341,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { quickAdd, walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { quickAdd, encryptBackup, decryptBackup, walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
