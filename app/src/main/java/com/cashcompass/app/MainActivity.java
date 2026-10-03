@@ -219,7 +219,26 @@ public class MainActivity extends Activity {
                         com.google.mlkit.vision.text.TextRecognition
                                 .getClient(new com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build())
                                 .process(image)
-                                .addOnSuccessListener(visionText -> callback("cashCompassReceiptOCR", visionText.getText()))
+                                .addOnSuccessListener(visionText -> {
+                                    // Structured payload: full text plus blocks with size/position,
+                                    // so the web form can tell the store name (big, top) from
+                                    // payment artifacts like "VERIFIED BY PIN".
+                                    StringBuilder sb = new StringBuilder();
+                                    sb.append("{\"text\":").append(org.json.JSONObject.quote(visionText.getText()));
+                                    sb.append(",\"blocks\":[");
+                                    boolean first = true;
+                                    for (com.google.mlkit.vision.text.Text.TextBlock b : visionText.getTextBlocks()) {
+                                        if (!first) sb.append(",");
+                                        first = false;
+                                        android.graphics.Rect box = b.getBoundingBox();
+                                        int h = box != null ? box.height() : 0;
+                                        int y = box != null ? box.top : 0;
+                                        sb.append("{\"t\":").append(org.json.JSONObject.quote(b.getText()));
+                                        sb.append(",\"h\":").append(h).append(",\"y\":").append(y).append("}");
+                                    }
+                                    sb.append("]}");
+                                    callback("cashCompassReceiptOCR", sb.toString());
+                                })
                                 .addOnFailureListener(e -> { /* OCR unavailable; manual entry still works */ });
                     } catch (Exception ignored) { /* unreadable image; manual entry still works */ }
                 }, "cash-compass-ocr").start();

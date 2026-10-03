@@ -1,3 +1,7 @@
+# 1.53.0
+
+- Receipt scan is smarter about the store name: it now uses text size and position to tell the actual merchant apart from payment artifacts like "VERIFIED BY PIN" or "REG FUEL". If the name can't be read confidently, the field is left empty instead of guessed wrong.
+
 # 1.52.0
 
 - Receipt auto-scan: attaching a receipt photo now reads it on-device (ML Kit OCR) and fills in merchant, total, and date automatically. Nothing leaves your phone.

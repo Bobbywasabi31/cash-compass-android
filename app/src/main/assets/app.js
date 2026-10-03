@@ -249,15 +249,44 @@ document.addEventListener('change', async e => {
 });
 // Receipt OCR auto-fill: native ML Kit sends recognized text here after a
 // receipt photo is picked. Parses merchant, total, and date into the form.
-function parseReceipt(text) {
-  const out = {};
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 8)) {
-    if (/[A-Za-z]{3,}/.test(line) && !/receipt|invoice|customer copy|merchant copy/i.test(line)) {
-      out.merchant = line.replace(/\s{2,}/g, ' ').slice(0, 80);
-      break;
+function pickMerchant(text, blocks) {
+  // Score candidate lines: big text near the top of the receipt wins;
+  // payment artifacts (VERIFIED BY PIN, APPROVED, totals...) can never win.
+  // Returns '' when nothing looks like a store name — better empty than wrong.
+  const BAD = /approved|declined|verified|\bpin\b|debit|credit|\bvisa\b|mastercard|amex|discover|\bauth\b|reprint|customer copy|merchant copy|thank you|welcome|subtotal|\btotal\b|\btax\b|change due|cash tendered|\bbalance\b|invoice|\breceipt\b|cashier|clerk|register|store #|terminal|\btran\b|seq|ref #|\d{4,}|www\.|https?|\.com|tel:|phone|fuel total|reg fuel|unleaded|diesel|premium|gallons|price\/gal/i;
+  const GOOD = /\bmart\b|store|station|foods|market|\bshop\b|\binc\b|llc|\bco\b|corp|pharmacy|deli|restaurant|cafe|grill|pizza|\bbar\b|hotel|motel|airlines|auto\b|center/i;
+  const cands = [];
+  if (blocks && blocks.length) {
+    for (const b of blocks) for (const raw of String(b.t || '').split('\n')) {
+      const line = raw.trim().replace(/\s{2,}/g, ' ');
+      if (line.length >= 3 && /[A-Za-z]{3,}/.test(line)) cands.push({ line, h: +b.h || 0, y: +b.y || 0 });
     }
+  } else {
+    text.split('\n').forEach((raw, i) => {
+      const line = raw.trim().replace(/\s{2,}/g, ' ');
+      if (line.length >= 3 && /[A-Za-z]{3,}/.test(line)) cands.push({ line, h: 0, y: i });
+    });
   }
+  if (!cands.length) return '';
+  const maxH = Math.max(1, ...cands.map(c => c.h));
+  const minY = Math.min(...cands.map(c => c.y));
+  const maxY = Math.max(...cands.map(c => c.y), minY + 1);
+  let best = '', bestScore = 0;
+  for (const c of cands) {
+    let s = 0;
+    if (c.h > 0) s += (c.h / maxH) * 30;
+    s += (1 - (c.y - minY) / (maxY - minY)) * 15;
+    if (GOOD.test(c.line)) s += 12;
+    if (BAD.test(c.line)) s -= 50;
+    if (/\$/.test(c.line)) s -= 10;
+    if (/^[\d\s\/.,:-]*$/.test(c.line)) s -= 30;
+    if (s > bestScore) { bestScore = s; best = c.line.slice(0, 80); }
+  }
+  return bestScore >= 8 ? best : '';
+}
+function parseReceipt(text, blocks) {
+  const out = {};
+  out.merchant = pickMerchant(text, blocks);
   let m = text.match(/(?:grand\s+total|\btotal\b|amount\s+due|balance\s+due|total\s+due)[^\d$]{0,12}\$?\s*([\d,]+\.\d{2})/i);
   if (m) out.total = m[1].replace(/,/g, '');
   else {
@@ -273,11 +302,16 @@ function parseReceipt(text) {
   }
   return out;
 }
-window.cashCompassReceiptOCR = function(text) {
-  if (!text) return;
+window.cashCompassReceiptOCR = function(payload) {
+  if (!payload) return;
+  let text = '', blocks = [];
+  if (typeof payload === 'string') {
+    try { const o = JSON.parse(payload); text = o.text || ''; blocks = o.blocks || []; }
+    catch (e) { text = payload; }
+  }
   const form = document.querySelector('#transactionForm');
   if (!form) return;
-  const p = parseReceipt(text);
+  const p = parseReceipt(text, blocks);
   const filled = [];
   const set = (name, value) => {
     const input = form.querySelector('[name=' + name + ']');
