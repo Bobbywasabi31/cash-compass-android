@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "profile": {
+    "balance": 1000,
+    "name": "Test",
+    "hourlyRate": 0,
+    "taxRate": 0,
+    "buffer": 0,
+    "taxHeld": 0
+  },
+  "transactions": [
+    {
+      "id": "t1",
+      "label": "Old format",
+      "amount": 50,
+      "date": "2026-01-15",
+      "type": "expense",
+      "category": "Other"
+    }
+  ],
+  "bills": [],
+  "incomes": [],
+  "goals": []
+}

@@ -1,3 +1,8 @@
+# Cash Compass 1.46.0 preview
+
+- **Animations (roadmap #91):** Subtle transitions; reduced-motion support.
+- **Migration fixtures (roadmap #94):** Old-schema tests.
+
 # Cash Compass 1.45.0 preview
 
 - **OFX/QFX/QIF import (roadmap #39):** Bank statement import.

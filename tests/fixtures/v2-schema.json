@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "profile": {
+    "balance": 2000,
+    "name": "Test",
+    "hourlyRate": 0,
+    "taxRate": 0,
+    "buffer": 100,
+    "taxHeld": 0
+  },
+  "accounts": [
+    {
+      "id": "cash",
+      "label": "Cash",
+      "balance": 2000,
+      "type": "checking"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "t1",
+      "label": "Test",
+      "amount": 50,
+      "date": "2026-01-15",
+      "type": "expense",
+      "category": "Food",
+      "accountId": "cash"
+    }
+  ],
+  "bills": [],
+  "incomes": [],
+  "budgets": [],
+  "goals": []
+}

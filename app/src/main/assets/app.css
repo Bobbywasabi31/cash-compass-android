@@ -116,3 +116,16 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
 .muted{color:var(--muted)}
 .plan-result{background:var(--mint);border-radius:8px;padding:12px;margin-top:12px}
 .plan-result h4{margin:0 0 8px}
+
+/* Animations and haptics (roadmap #91): subtle transitions */
+.panel,.card{transition:transform .15s ease,box-shadow .15s ease}
+button{transition:background-color .15s ease,transform .1s ease}
+button:active{transform:scale(.98)}
+.stat,.summary{transition:background-color .2s ease}
+.modal{animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.toast{transition:opacity .25s ease,transform .25s ease}
+.nav button{transition:color .15s ease}
+@media (prefers-reduced-motion:reduce){
+ *{animation:none!important;transition:none!important}
+}
