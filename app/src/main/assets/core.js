@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -85,7 +85,48 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Loan amortization tracker (roadmap #51): balance, rate, schedule,
+    // Dividend tracker (roadmap #53): log, calendar, and projected income.
+  function dividendStats(state) {
+    const divs = (state.dividends || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    const total = dollars(divs.reduce((s, d) => s + cents(d.amount), 0));
+    // Projected monthly: average of last 12 months
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const cutoff = new Date(Date.UTC(y, m - 12, 1)).toISOString().slice(0, 10);
+    const recent = divs.filter(d => d.date >= cutoff);
+    const recentTotal = dollars(recent.reduce((s, d) => s + cents(d.amount), 0));
+    // Payment calendar: group by month
+    const byMonth = {};
+    divs.forEach(d => {
+      const month = d.date.slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { month, total: 0, count: 0 };
+      byMonth[month].total = dollars(cents(byMonth[month].total) + cents(d.amount));
+      byMonth[month].count++;
+    });
+    return { dividends: divs, total, projectedMonthly: dollars(recentTotal / 12),
+      calendar: Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12) };
+  }
+  // DRIP/compound growth projection (roadmap #54).
+  function dripProjection(state, annualYield = 2, annualGrowth = 7, years = 10, monthlyContribution = 0) {
+    annualYield = number(annualYield, 0, 100);
+    annualGrowth = number(annualGrowth, -100, 100);
+    years = Math.max(1, Math.min(50, Math.round(number(years, 1))));
+    monthlyContribution = number(monthlyContribution, 0);
+    const p = portfolio(state);
+    const monthlyRate = Math.pow(1 + (annualYield + annualGrowth) / 100, 1 / 12) - 1;
+    let value = p.value;
+    const schedule = [{ year: 0, value }];
+    for (let y = 1; y <= years; y++) {
+      for (let m = 0; m < 12; m++) {
+        value = value * (1 + monthlyRate) + monthlyContribution;
+      }
+      schedule.push({ year: y, value: dollars(Math.round(cents(value))) });
+    }
+    return { current: p.value, annualYield, annualGrowth, years, monthlyContribution,
+      projected: schedule[schedule.length - 1].value, schedule,
+      totalContributions: dollars(cents(monthlyContribution) * 12 * years) };
+  }
+  // Loan amortization tracker (roadmap #51): balance, rate, schedule,
   // and extra-payment effect.
   function loanAmortization(principal, annualRate, monthlyPayment, extraPayment = 0) {
     principal = number(principal, 0.01);
@@ -123,6 +164,12 @@
     result.milestones = list(raw.milestones).map((x,i) => {
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
+    });
+    // Dividend tracker (roadmap #53).
+    result.dividends = list(raw.dividends).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid dividend.');
+      if (!validDate(x.date)) throw Error('Invalid dividend date.');
+      return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
@@ -719,6 +766,47 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Dividend tracker (roadmap #53): log, calendar, and projected income.
+  function dividendStats(state) {
+    const divs = (state.dividends || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    const total = dollars(divs.reduce((s, d) => s + cents(d.amount), 0));
+    // Projected monthly: average of last 12 months
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const cutoff = new Date(Date.UTC(y, m - 12, 1)).toISOString().slice(0, 10);
+    const recent = divs.filter(d => d.date >= cutoff);
+    const recentTotal = dollars(recent.reduce((s, d) => s + cents(d.amount), 0));
+    // Payment calendar: group by month
+    const byMonth = {};
+    divs.forEach(d => {
+      const month = d.date.slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { month, total: 0, count: 0 };
+      byMonth[month].total = dollars(cents(byMonth[month].total) + cents(d.amount));
+      byMonth[month].count++;
+    });
+    return { dividends: divs, total, projectedMonthly: dollars(recentTotal / 12),
+      calendar: Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12) };
+  }
+  // DRIP/compound growth projection (roadmap #54).
+  function dripProjection(state, annualYield = 2, annualGrowth = 7, years = 10, monthlyContribution = 0) {
+    annualYield = number(annualYield, 0, 100);
+    annualGrowth = number(annualGrowth, -100, 100);
+    years = Math.max(1, Math.min(50, Math.round(number(years, 1))));
+    monthlyContribution = number(monthlyContribution, 0);
+    const p = portfolio(state);
+    const monthlyRate = Math.pow(1 + (annualYield + annualGrowth) / 100, 1 / 12) - 1;
+    let value = p.value;
+    const schedule = [{ year: 0, value }];
+    for (let y = 1; y <= years; y++) {
+      for (let m = 0; m < 12; m++) {
+        value = value * (1 + monthlyRate) + monthlyContribution;
+      }
+      schedule.push({ year: y, value: dollars(Math.round(cents(value))) });
+    }
+    return { current: p.value, annualYield, annualGrowth, years, monthlyContribution,
+      projected: schedule[schedule.length - 1].value, schedule,
+      totalContributions: dollars(cents(monthlyContribution) * 12 * years) };
   }
   // Loan amortization tracker (roadmap #51): balance, rate, schedule,
   // and extra-payment effect.
@@ -1504,7 +1592,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

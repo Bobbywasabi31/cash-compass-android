@@ -1,3 +1,8 @@
+# Cash Compass 1.29.0 preview
+
+- **Dividend tracker (roadmap #53):** Investments → Dividends logs payments with payment calendar and projected monthly income.
+- **DRIP/compound growth projection (roadmap #54):** Investments → Growth projection with editable yield, growth, years, and monthly contribution.
+
 # Cash Compass 1.28.0 preview
 
 - **Loan amortization tracker (roadmap #51):** Plan → Loan amortization shows payoff schedule, total interest, and extra-payment effect (interest and months saved).

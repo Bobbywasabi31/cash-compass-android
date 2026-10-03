@@ -829,3 +829,28 @@ test('holding supports cost basis lots',()=>{
  const n=C.normalize(s);
  assert.equal(n.holdings[0].lots.length,2);
 });
+
+test('dividendStats tracks log and projects monthly',()=>{
+ const s=C.blank();
+ s.dividends.push({id:'d1',symbol:'VTI',amount:100,date:'2026-09-15'});
+ s.dividends.push({id:'d2',symbol:'VTI',amount:100,date:'2026-06-15'});
+ const st=C.dividendStats(s);
+ assert.equal(st.total,200);
+ assert.equal(st.dividends.length,2);
+ assert.ok(st.projectedMonthly>0);
+ assert.equal(st.calendar.length,2);
+ const n=C.normalize(s);
+ assert.equal(n.dividends.length,2);
+});
+
+test('dripProjection compounds with contributions',()=>{
+ const s=C.blank();
+ s.holdings.push({id:'h1',label:'Test',symbol:'TST',assetClass:'stock',quantity:10,price:100,cost:90,lots:[],updated:'2026-10-01'});
+ const r=C.dripProjection(s,2,7,10,100);
+ assert.equal(r.current,1000);
+ assert.ok(r.projected>1000);
+ assert.equal(r.schedule.length,11);
+ assert.equal(r.totalContributions,12000);
+ const noContrib=C.dripProjection(s,0,0,5,0);
+ assert.equal(noContrib.projected,1000);
+});
