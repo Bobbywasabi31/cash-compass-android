@@ -1,3 +1,8 @@
+# 1.51.0
+
+- Receipt photos now work on Android: the photo picker opens correctly (camera or gallery) when attaching a receipt to a transaction.
+- Fixed the "+ Add transaction" button layout on narrow screens — it no longer collapses with vertically stacked text.
+
 # 1.50.0
 
 - Encrypted backups (#8): protect your backup with a passphrase (AES-256). Download and restore from Backup / restore.

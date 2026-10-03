@@ -84,4 +84,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="v1.51.0-preview.${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" dist/Cash-Compass-1.51.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cash Compass 1.51.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file RELEASE_NOTES.md
+          # Only the latest version's notes — keeps the releases page short
+          awk '/^# /{if(++c>1) exit} {print}' RELEASE_NOTES.md > dist/NOTES.md
+          gh release create "$tag" dist/Cash-Compass-1.51.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cash Compass 1.51.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md
