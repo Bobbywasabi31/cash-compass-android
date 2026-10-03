@@ -85,7 +85,55 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Custom categories and groups (roadmap #41).
+    // Credit card tracker (roadmap #46): statement close, due date, minimum due.
+  function saveCreditCard(state, data) {
+    const cards = state.creditCards || [];
+    const card = {
+      id: data.id || 'cc-' + Date.now(),
+      label: String(data.label || '').trim(),
+      last4: String(data.last4 || '').replace(/\D/g, '').slice(-4),
+      statementDay: Math.max(1, Math.min(28, Number(data.statementDay) || 1)),
+      dueDay: Math.max(1, Math.min(28, Number(data.dueDay) || 15)),
+      apr: Math.max(0, Math.min(100, Number(data.apr) || 0)),
+      balance: Number(data.balance) || 0,
+      minimumDue: Number(data.minimumDue) || 0,
+    };
+    if (!card.label) throw Error('Enter a card name.');
+    const i = cards.findIndex(c => c.id === card.id);
+    if (i < 0) cards.push(card); else cards[i] = card;
+    return cards;
+  }
+  function creditCardStatus(state, card, today = localDate()) {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    // Next statement close
+    let stmtMonth = m, stmtYear = y;
+    if (Number(today.slice(8, 10)) >= card.statementDay) { stmtMonth++; if (stmtMonth > 12) { stmtMonth = 1; stmtYear++; } }
+    const stmtDate = `${stmtYear}-${String(stmtMonth).padStart(2, '0')}-${String(card.statementDay).padStart(2, '0')}`;
+    // Due date is dueDay of month after statement
+    let dueMonth = stmtMonth + 1, dueYear = stmtYear;
+    if (dueMonth > 12) { dueMonth = 1; dueYear++; }
+    const dueDate = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+    const daysUntilDue = Math.round((new Date(dueDate) - new Date(today)) / 86400000);
+    return { ...card, statementDate: stmtDate, dueDate, daysUntilDue,
+      overdue: daysUntilDue < 0, dueSoon: daysUntilDue >= 0 && daysUntilDue <= 7 };
+  }
+  // Card payment planner (roadmap #47): avoid interest while keeping buffer.
+  function planCardPayment(state, cardId, buffer = 0) {
+    const card = (state.creditCards || []).find(c => c.id === cardId);
+    if (!card) throw Error('Card not found.');
+    const status = creditCardStatus(state, card);
+    const available = Math.max(0, state.profile.balance - buffer);
+    // Pay in full if possible, else minimum, else what we can
+    let amount, strategy;
+    if (available >= card.balance) { amount = card.balance; strategy = 'Pay in full — no interest.'; }
+    else if (available >= card.minimumDue) { amount = card.minimumDue; strategy = 'Pay minimum to avoid late fee. Remaining balance accrues interest.'; }
+    else { amount = available; strategy = 'Cannot cover minimum — late fee likely. Pay what you can now.'; }
+    const remaining = Math.max(0, card.balance - amount);
+    const monthlyInterest = remaining * (card.apr / 100 / 12);
+    return { card: card.label, amount, strategy, remaining, monthlyInterest,
+      dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
     name = String(name || '').trim();
     if (!name) throw Error('Enter a category name.');
@@ -462,7 +510,55 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Custom categories and groups (roadmap #41).
+    // Credit card tracker (roadmap #46): statement close, due date, minimum due.
+  function saveCreditCard(state, data) {
+    const cards = state.creditCards || [];
+    const card = {
+      id: data.id || 'cc-' + Date.now(),
+      label: String(data.label || '').trim(),
+      last4: String(data.last4 || '').replace(/\D/g, '').slice(-4),
+      statementDay: Math.max(1, Math.min(28, Number(data.statementDay) || 1)),
+      dueDay: Math.max(1, Math.min(28, Number(data.dueDay) || 15)),
+      apr: Math.max(0, Math.min(100, Number(data.apr) || 0)),
+      balance: Number(data.balance) || 0,
+      minimumDue: Number(data.minimumDue) || 0,
+    };
+    if (!card.label) throw Error('Enter a card name.');
+    const i = cards.findIndex(c => c.id === card.id);
+    if (i < 0) cards.push(card); else cards[i] = card;
+    return cards;
+  }
+  function creditCardStatus(state, card, today = localDate()) {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    // Next statement close
+    let stmtMonth = m, stmtYear = y;
+    if (Number(today.slice(8, 10)) >= card.statementDay) { stmtMonth++; if (stmtMonth > 12) { stmtMonth = 1; stmtYear++; } }
+    const stmtDate = `${stmtYear}-${String(stmtMonth).padStart(2, '0')}-${String(card.statementDay).padStart(2, '0')}`;
+    // Due date is dueDay of month after statement
+    let dueMonth = stmtMonth + 1, dueYear = stmtYear;
+    if (dueMonth > 12) { dueMonth = 1; dueYear++; }
+    const dueDate = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+    const daysUntilDue = Math.round((new Date(dueDate) - new Date(today)) / 86400000);
+    return { ...card, statementDate: stmtDate, dueDate, daysUntilDue,
+      overdue: daysUntilDue < 0, dueSoon: daysUntilDue >= 0 && daysUntilDue <= 7 };
+  }
+  // Card payment planner (roadmap #47): avoid interest while keeping buffer.
+  function planCardPayment(state, cardId, buffer = 0) {
+    const card = (state.creditCards || []).find(c => c.id === cardId);
+    if (!card) throw Error('Card not found.');
+    const status = creditCardStatus(state, card);
+    const available = Math.max(0, state.profile.balance - buffer);
+    // Pay in full if possible, else minimum, else what we can
+    let amount, strategy;
+    if (available >= card.balance) { amount = card.balance; strategy = 'Pay in full — no interest.'; }
+    else if (available >= card.minimumDue) { amount = card.minimumDue; strategy = 'Pay minimum to avoid late fee. Remaining balance accrues interest.'; }
+    else { amount = available; strategy = 'Cannot cover minimum — late fee likely. Pay what you can now.'; }
+    const remaining = Math.max(0, card.balance - amount);
+    const monthlyInterest = remaining * (card.apr / 100 / 12);
+    return { card: card.label, amount, strategy, remaining, monthlyInterest,
+      dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
     name = String(name || '').trim();
     if (!name) throw Error('Enter a category name.');
@@ -765,7 +861,55 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Custom categories and groups (roadmap #41).
+    // Credit card tracker (roadmap #46): statement close, due date, minimum due.
+  function saveCreditCard(state, data) {
+    const cards = state.creditCards || [];
+    const card = {
+      id: data.id || 'cc-' + Date.now(),
+      label: String(data.label || '').trim(),
+      last4: String(data.last4 || '').replace(/\D/g, '').slice(-4),
+      statementDay: Math.max(1, Math.min(28, Number(data.statementDay) || 1)),
+      dueDay: Math.max(1, Math.min(28, Number(data.dueDay) || 15)),
+      apr: Math.max(0, Math.min(100, Number(data.apr) || 0)),
+      balance: Number(data.balance) || 0,
+      minimumDue: Number(data.minimumDue) || 0,
+    };
+    if (!card.label) throw Error('Enter a card name.');
+    const i = cards.findIndex(c => c.id === card.id);
+    if (i < 0) cards.push(card); else cards[i] = card;
+    return cards;
+  }
+  function creditCardStatus(state, card, today = localDate()) {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    // Next statement close
+    let stmtMonth = m, stmtYear = y;
+    if (Number(today.slice(8, 10)) >= card.statementDay) { stmtMonth++; if (stmtMonth > 12) { stmtMonth = 1; stmtYear++; } }
+    const stmtDate = `${stmtYear}-${String(stmtMonth).padStart(2, '0')}-${String(card.statementDay).padStart(2, '0')}`;
+    // Due date is dueDay of month after statement
+    let dueMonth = stmtMonth + 1, dueYear = stmtYear;
+    if (dueMonth > 12) { dueMonth = 1; dueYear++; }
+    const dueDate = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+    const daysUntilDue = Math.round((new Date(dueDate) - new Date(today)) / 86400000);
+    return { ...card, statementDate: stmtDate, dueDate, daysUntilDue,
+      overdue: daysUntilDue < 0, dueSoon: daysUntilDue >= 0 && daysUntilDue <= 7 };
+  }
+  // Card payment planner (roadmap #47): avoid interest while keeping buffer.
+  function planCardPayment(state, cardId, buffer = 0) {
+    const card = (state.creditCards || []).find(c => c.id === cardId);
+    if (!card) throw Error('Card not found.');
+    const status = creditCardStatus(state, card);
+    const available = Math.max(0, state.profile.balance - buffer);
+    // Pay in full if possible, else minimum, else what we can
+    let amount, strategy;
+    if (available >= card.balance) { amount = card.balance; strategy = 'Pay in full — no interest.'; }
+    else if (available >= card.minimumDue) { amount = card.minimumDue; strategy = 'Pay minimum to avoid late fee. Remaining balance accrues interest.'; }
+    else { amount = available; strategy = 'Cannot cover minimum — late fee likely. Pay what you can now.'; }
+    const remaining = Math.max(0, card.balance - amount);
+    const monthlyInterest = remaining * (card.apr / 100 / 12);
+    return { card: card.label, amount, strategy, remaining, monthlyInterest,
+      dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
+  }
+  // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
     name = String(name || '').trim();
     if (!name) throw Error('Enter a category name.');
@@ -1651,6 +1795,54 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Credit card tracker (roadmap #46): statement close, due date, minimum due.
+  function saveCreditCard(state, data) {
+    const cards = state.creditCards || [];
+    const card = {
+      id: data.id || 'cc-' + Date.now(),
+      label: String(data.label || '').trim(),
+      last4: String(data.last4 || '').replace(/\D/g, '').slice(-4),
+      statementDay: Math.max(1, Math.min(28, Number(data.statementDay) || 1)),
+      dueDay: Math.max(1, Math.min(28, Number(data.dueDay) || 15)),
+      apr: Math.max(0, Math.min(100, Number(data.apr) || 0)),
+      balance: Number(data.balance) || 0,
+      minimumDue: Number(data.minimumDue) || 0,
+    };
+    if (!card.label) throw Error('Enter a card name.');
+    const i = cards.findIndex(c => c.id === card.id);
+    if (i < 0) cards.push(card); else cards[i] = card;
+    return cards;
+  }
+  function creditCardStatus(state, card, today = localDate()) {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    // Next statement close
+    let stmtMonth = m, stmtYear = y;
+    if (Number(today.slice(8, 10)) >= card.statementDay) { stmtMonth++; if (stmtMonth > 12) { stmtMonth = 1; stmtYear++; } }
+    const stmtDate = `${stmtYear}-${String(stmtMonth).padStart(2, '0')}-${String(card.statementDay).padStart(2, '0')}`;
+    // Due date is dueDay of month after statement
+    let dueMonth = stmtMonth + 1, dueYear = stmtYear;
+    if (dueMonth > 12) { dueMonth = 1; dueYear++; }
+    const dueDate = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+    const daysUntilDue = Math.round((new Date(dueDate) - new Date(today)) / 86400000);
+    return { ...card, statementDate: stmtDate, dueDate, daysUntilDue,
+      overdue: daysUntilDue < 0, dueSoon: daysUntilDue >= 0 && daysUntilDue <= 7 };
+  }
+  // Card payment planner (roadmap #47): avoid interest while keeping buffer.
+  function planCardPayment(state, cardId, buffer = 0) {
+    const card = (state.creditCards || []).find(c => c.id === cardId);
+    if (!card) throw Error('Card not found.');
+    const status = creditCardStatus(state, card);
+    const available = Math.max(0, state.profile.balance - buffer);
+    // Pay in full if possible, else minimum, else what we can
+    let amount, strategy;
+    if (available >= card.balance) { amount = card.balance; strategy = 'Pay in full — no interest.'; }
+    else if (available >= card.minimumDue) { amount = card.minimumDue; strategy = 'Pay minimum to avoid late fee. Remaining balance accrues interest.'; }
+    else { amount = available; strategy = 'Cannot cover minimum — late fee likely. Pay what you can now.'; }
+    const remaining = Math.max(0, card.balance - amount);
+    const monthlyInterest = remaining * (card.apr / 100 / 12);
+    return { card: card.label, amount, strategy, remaining, monthlyInterest,
+      dueDate: status.dueDate, daysUntilDue: status.daysUntilDue };
   }
   // Custom categories and groups (roadmap #41).
   function saveCustomCategory(state, name, group, color) {
@@ -2774,7 +2966,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

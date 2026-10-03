@@ -1056,3 +1056,34 @@ test('detectPaychecks finds recurring deposits',()=>{
  s2.transactions.push({id:'p1',label:'Pay',amount:1000,date:'2026-09-15',type:'income',category:'Income',accountId:'cash'});
  assert.equal(C.detectPaychecks(s2).length,0);
 });
+
+test('saveCreditCard validates and saves',()=>{
+ const s=C.blank();
+ const cards=C.saveCreditCard(s,{label:'Chase Sapphire',last4:'1234',statementDay:5,dueDay:20,balance:1500,minimumDue:50,apr:19.99});
+ assert.equal(cards.length,1);
+ assert.equal(cards[0].label,'Chase Sapphire');
+ assert.equal(cards[0].last4,'1234');
+ assert.throws(()=>C.saveCreditCard(s,{label:'',balance:100}));
+});
+
+test('creditCardStatus calculates dates',()=>{
+ const s=C.blank();
+ const cards=C.saveCreditCard(s,{label:'Test',statementDay:1,dueDay:15,balance:1000,minimumDue:25,apr:20});
+ const status=C.creditCardStatus(s,cards[0],'2026-09-10');
+ assert.ok(status.statementDate);
+ assert.ok(status.dueDate);
+ assert.ok(status.daysUntilDue!==undefined);
+});
+
+test('planCardPayment suggests strategy',()=>{
+ const s=C.blank();
+ s.profile.balance=5000;
+ s.creditCards=C.saveCreditCard(s,{label:'Test',statementDay:1,dueDay:15,balance:1000,minimumDue:25,apr:20});
+ const plan=C.planCardPayment(s,s.creditCards[0].id,500);
+ assert.equal(plan.amount,1000); // pay in full
+ assert.ok(plan.strategy.includes('in full'));
+ // Low balance
+ s.profile.balance=100;
+ const plan2=C.planCardPayment(s,s.creditCards[0].id,0);
+ assert.ok(plan2.amount<1000);
+});

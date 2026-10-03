@@ -1,3 +1,8 @@
+# Cash Compass 1.40.0 preview
+
+- **Credit card tracker (roadmap #46):** Statement dates, due dates, minimums, APR.
+- **Card payment planner (roadmap #47):** Suggests payment strategy.
+
 # Cash Compass 1.39.0 preview
 
 - **Custom categories (roadmap #41):** Create categories with groups and colors.
