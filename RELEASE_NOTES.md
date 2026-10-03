@@ -1,3 +1,8 @@
+# Cash Compass 1.37.0 preview
+
+- **Report export (roadmap #70):** Reports → Export CSV and Print/PDF.
+- **Share summary (roadmap #72):** Android share sheet for the summary.
+
 # Cash Compass 1.36.0 preview
 
 - **Connected AI coach (roadmap #78):** Optional BYO API key in Profile; summarized data only.

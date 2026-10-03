@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.36.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.37.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -247,6 +247,24 @@ document.addEventListener('click', e => {
     document.getElementById('categorySuggestion').innerHTML = '';
   }
 });
+function download(filename, content, type){
+  const blob = new Blob([content], {type});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+async function shareSummary(){
+  const text = C.shareSummary(state);
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Cash Compass summary', text }); }
+    catch(e) { /* user cancelled */ }
+  } else {
+    download('cash-compass-summary.txt', text, 'text/plain');
+    flash('Summary downloaded. Share it from your files.');
+  }
+}
 function render() {
   app.innerHTML = ({ home, plan, goals, coach, profile, transactions, budgets, accounts, reports, cashflow, investments, forecasting, wallet })[tab]() + nav() + modal();
   if (dialog) { const el = app.querySelector('.modal input, .modal textarea, .modal .primary'); if (el) el.focus(); }
@@ -551,7 +569,7 @@ function flowDiagram(r) {
  const table=(items,title)=>`<table class="flow-values"><caption>${title}</caption><thead><tr><th scope="col">Group</th><th scope="col">Amount</th></tr></thead><tbody>${rows(items)}</tbody><tfoot><tr><th scope="row">Total</th><td>${cash(flow.totalCents)}</td></tr></tfoot></table>`;
  return `<section class="sankey" aria-label="Cash flow Sankey"><div class="flow-summary"><span>${flow.gapCents?'Spending exceeds income':'Income left after spending'}</span><strong class="${flow.gapCents?'danger':'positive'}">${cash(flow.gapCents||flow.savedCents)} ${flow.gapCents?'gap':'saved'}</strong></div>${graphic}<p class="small flow-scroll-hint">Swipe the diagram to see all labels, or open the exact values below.</p><p class="small">${flow.gapCents?'Funding gap is spending above recorded income. It does not identify borrowing or where the extra money came from.':'Saved means recorded income minus expenses, not a transfer to a savings account or your safe-to-spend amount.'} Transfers are excluded.</p><p class="small">Groups below 3% of their income or expense total are combined into Other. Up to five named income groups and six spending groups are shown; remaining groups join Other.</p><details class="chart-data flow-data"><summary>View exact amounts and Other details</summary><div class="flow-tables">${table(incoming,'Income and funding')}${table(outgoing,'Spending and saved')}</div></details></section>`;
 }
-function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection()+spendingTrendsSection()+monthOverMonthSection()+monthlyReviewSection()+yearReviewSection()+seasonalSection()+calendarSection();}
+function reports(){const r=C.cashFlow(state,reportStart,reportEnd,reportAccount,flowGroup);return header('Reports','Explore cash flow, income, and spending over any date range.')+`<div class="page-actions"><button class="quiet" data-action="export-csv">Export CSV</button><button class="quiet" data-action="export-print">Print / PDF</button><button class="quiet" data-action="share">Share summary</button></div><div class="tabs">${[['flow','Cash Flow'],['spending','Spending'],['income','Income']].map(([v,l])=>`<button data-report-view="${v}" class="${reportView===v?'active':''}">${l}</button>`).join('')}</div><form id="detailReportForm" class="filter-bar">${field('start','From',reportStart,'date')}${field('end','Through',reportEnd,'date')}${selectField('account','Account',reportAccount,[['all','All accounts'],...state.accounts.map(a=>[a.id,a.label])])}${selectField('group','Group by',flowGroup,[['category','Category'],['merchant','Merchant']])}<button class="quiet">Update report</button></form>`+cashStats(r)+panel(reportView==='flow'?'Income → spending & savings':reportView==='income'?'Income breakdown':'Spending breakdown',reportView==='flow'?flowDiagram(r):breakdown(reportView==='income'?r.incomes:r.expenses,reportView==='income'?r.income:r.expense,reportView==='income'?'income':'expenses'))+`<div class="content-with-aside"><div>${panel('Income',breakdown(r.incomes,r.income,'income'))}${panel('Expenses',breakdown(r.expenses,r.expense,'expenses'))}</div>${panel('Summary',transactionSummary(r.rows))}</div>`+taxSetAsideSection()+topMerchantsSection()+savingsRateSection()+spendingTrendsSection()+monthOverMonthSection()+monthlyReviewSection()+yearReviewSection()+seasonalSection()+calendarSection();}
 // Auto-drafted monthly review (roadmap #80).
 function monthlyReviewSection() {
   const r = C.monthlyReview(state);

@@ -987,3 +987,21 @@ test('suggestCategory suggests based on history',()=>{
  assert.equal(C.suggestCategory(s,'xyzunknown'),null);
  assert.equal(C.suggestCategory(s,''),null);
 });
+
+test('reportCSV generates valid CSV',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Food',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const csv=C.reportCSV(s,'2026-09');
+ assert.ok(csv.includes('Category,Amount'));
+ assert.ok(csv.includes('Food'));
+ assert.ok(csv.includes('Total expenses'));
+});
+
+test('shareSummary generates text summary',()=>{
+ const s=C.blank();
+ s.profile.balance=1000;
+ const text=C.shareSummary(s);
+ assert.ok(text.includes('Cash Compass summary'));
+ assert.ok(text.includes('Safe to spend'));
+ assert.ok(text.includes('Net worth'));
+});

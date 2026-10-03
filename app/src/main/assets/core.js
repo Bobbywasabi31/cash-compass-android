@@ -85,7 +85,30 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+    // Report export (roadmap #70): generate CSV for a period.
+  function reportCSV(state, month) {
+    const r = spendingReport(state, month);
+    const lines = ['Category,Amount'];
+    r.categories.forEach(c => lines.push(`"${c.label.replace(/"/g,'""')}",${c.amount}`));
+    lines.push(`"Total income",${r.income}`);
+    lines.push(`"Total expenses",${r.expense}`);
+    lines.push(`"Net",${r.net}`);
+    return lines.join('\n');
+  }
+  // Share summary (roadmap #72): text summary for sharing.
+  function shareSummary(state) {
+    const m = forecast(state);
+    const r = spendingReport(state, localDate().slice(0, 7));
+    const sr = savingsRate(state, 3);
+    const w = netWorth(state);
+    const fmt = n => '$' + Number(n).toFixed(2);
+    return `Cash Compass summary\n` +
+      `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
+      `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
+      `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
+      `Net worth: ${fmt(w.total)}`;
+  }
+  // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
   function suggestCategory(state, label) {
     label = String(label || '').toLowerCase().trim();
     if (!label) return null;
@@ -367,7 +390,30 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+    // Report export (roadmap #70): generate CSV for a period.
+  function reportCSV(state, month) {
+    const r = spendingReport(state, month);
+    const lines = ['Category,Amount'];
+    r.categories.forEach(c => lines.push(`"${c.label.replace(/"/g,'""')}",${c.amount}`));
+    lines.push(`"Total income",${r.income}`);
+    lines.push(`"Total expenses",${r.expense}`);
+    lines.push(`"Net",${r.net}`);
+    return lines.join('\n');
+  }
+  // Share summary (roadmap #72): text summary for sharing.
+  function shareSummary(state) {
+    const m = forecast(state);
+    const r = spendingReport(state, localDate().slice(0, 7));
+    const sr = savingsRate(state, 3);
+    const w = netWorth(state);
+    const fmt = n => '$' + Number(n).toFixed(2);
+    return `Cash Compass summary\n` +
+      `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
+      `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
+      `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
+      `Net worth: ${fmt(w.total)}`;
+  }
+  // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
   function suggestCategory(state, label) {
     label = String(label || '').toLowerCase().trim();
     if (!label) return null;
@@ -575,7 +621,30 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
+    // Report export (roadmap #70): generate CSV for a period.
+  function reportCSV(state, month) {
+    const r = spendingReport(state, month);
+    const lines = ['Category,Amount'];
+    r.categories.forEach(c => lines.push(`"${c.label.replace(/"/g,'""')}",${c.amount}`));
+    lines.push(`"Total income",${r.income}`);
+    lines.push(`"Total expenses",${r.expense}`);
+    lines.push(`"Net",${r.net}`);
+    return lines.join('\n');
+  }
+  // Share summary (roadmap #72): text summary for sharing.
+  function shareSummary(state) {
+    const m = forecast(state);
+    const r = spendingReport(state, localDate().slice(0, 7));
+    const sr = savingsRate(state, 3);
+    const w = netWorth(state);
+    const fmt = n => '$' + Number(n).toFixed(2);
+    return `Cash Compass summary\n` +
+      `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
+      `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
+      `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
+      `Net worth: ${fmt(w.total)}`;
+  }
+  // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
   function suggestCategory(state, label) {
     label = String(label || '').toLowerCase().trim();
     if (!label) return null;
@@ -1366,6 +1435,29 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Report export (roadmap #70): generate CSV for a period.
+  function reportCSV(state, month) {
+    const r = spendingReport(state, month);
+    const lines = ['Category,Amount'];
+    r.categories.forEach(c => lines.push(`"${c.label.replace(/"/g,'""')}",${c.amount}`));
+    lines.push(`"Total income",${r.income}`);
+    lines.push(`"Total expenses",${r.expense}`);
+    lines.push(`"Net",${r.net}`);
+    return lines.join('\n');
+  }
+  // Share summary (roadmap #72): text summary for sharing.
+  function shareSummary(state) {
+    const m = forecast(state);
+    const r = spendingReport(state, localDate().slice(0, 7));
+    const sr = savingsRate(state, 3);
+    const w = netWorth(state);
+    const fmt = n => '$' + Number(n).toFixed(2);
+    return `Cash Compass summary\n` +
+      `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
+      `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
+      `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
+      `Net worth: ${fmt(w.total)}`;
   }
   // Smart categorization suggestions (roadmap #79): suggest when no rule matches.
   function suggestCategory(state, label) {
@@ -2394,7 +2486,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
