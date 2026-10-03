@@ -63,3 +63,42 @@ test('invalid backups and tax reversals fail without partially modifying cash',(
  C.saveTransaction(s,{id:'a',label:'Pay',type:'income',amount:100,date:'2026-09-18',taxDelta:20});s.profile.taxHeld=0;
  const before=JSON.stringify(s);assert.throws(()=>C.removeTransaction(s,'a'));assert.equal(JSON.stringify(s),before);
 });
+test('cash-crunch warnings flag 30-day dates below the safety buffer',()=>{
+ const s=C.blank();s.profile.balance=500;s.profile.buffer=100;
+ s.bills=[{id:'rent',label:'Rent',amount:450,date:'2026-09-25',repeat:'none',accountId:'cash',category:'Housing'}];
+ const f=C.forecast(s,'2026-09-18');
+ assert.ok(f.crunchDays.length>=1);
+ assert.equal(f.crunchDays[0].date,'2026-09-25');
+ assert.equal(f.buffer,100);
+ // No buffer means no crunch days, so this never duplicates the shortfall warning.
+ s.profile.buffer=0;
+ assert.equal(C.forecast(s,'2026-09-18').crunchDays.length,0);
+ // Comfortable cash means no crunch days either.
+ const ok=C.blank();ok.profile.balance=5000;ok.profile.buffer=100;
+ ok.bills=[{id:'rent',label:'Rent',amount:450,date:'2026-09-25',repeat:'none',accountId:'cash',category:'Housing'}];
+ assert.equal(C.forecast(ok,'2026-09-18').crunchDays.length,0);
+});
+test('merchant memory learns category and account, suggests on normalized names',()=>{
+ const s=C.blank();
+ C.saveTransaction(s,{id:'a',label:"McDonald's",type:'expense',amount:12.5,date:'2026-09-18',category:'Dining'});
+ const sug=C.suggestMerchant(s,"  mcdonald's ");
+ assert.equal(sug.category,'Dining');
+ assert.equal(sug.accountId,'cash');
+ assert.equal(C.merchantKey('  Shell #42 - Fuel '),'shell 42 fuel');
+ // Unknown merchants suggest nothing.
+ assert.equal(C.suggestMerchant(s,'Unknown Shop'),null);
+ assert.equal(C.suggestMerchant(s,''),null);
+ // Transfers are not learned.
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:100});
+ C.saveTransaction(s,{id:'b',label:'Save Transfer',type:'transfer',amount:5,date:'2026-09-18',category:'Transfer',accountId:'cash',toAccountId:'checking'});
+ assert.equal(C.suggestMerchant(s,'save transfer'),null);
+ // Memory survives a backup round trip and can be cleared.
+ const restored=C.normalize(JSON.parse(JSON.stringify(s)));
+ assert.equal(C.suggestMerchant(restored,"McDonald's").category,'Dining');
+ C.clearMerchantMemory(restored);
+ assert.equal(C.suggestMerchant(restored,"McDonald's"),null);
+ assert.deepEqual(restored.merchantMemory,{});
+ // Oversized memory is rejected on import.
+ const big={...s,merchantMemory:Object.fromEntries(Array.from({length:501},(_,i)=>['m'+i,{label:'M'+i,category:'Other',accountId:'cash',uses:1}]))};
+ assert.throws(()=>C.normalize(big));
+});

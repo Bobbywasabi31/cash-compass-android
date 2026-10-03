@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.6.1';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.7.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -31,7 +31,7 @@ function legacyHeader(title, subtitle) {
 }
 function legacyNav() { return `<nav class="nav" aria-label="Main navigation">${[['home', '⌂', 'Today'], ['plan', '▦', 'Plan'], ['transactions', '≡', 'Activity'], ['budgets', '◎', 'Budget'], ['profile', '◌', 'You']].map(([key, icon, title]) => `<button data-tab="${key}" ${key === tab ? 'class="active" aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${title}</button>`).join('')}</nav>`; }
 function warnings(m) {
-  return `${m.overdue.length ? `<div class="notice danger">${m.overdue.length} unpaid overdue bill(s) remain reserved. Mark paid only after payment.</div>` : ''}${m.lateIncome.length ? `<div class="notice">${m.lateIncome.length} expected payment(s) are late. They are excluded from the forecast until you update the date or mark received.</div>` : ''}${m.shortfall ? `<div class="notice danger">Your entered cash is ${money(m.shortfall)} short of bills and reserves${m.next ? ' before the next pay' : ''}.</div>` : ''}`;
+  return `${m.overdue.length ? `<div class="notice danger">${m.overdue.length} unpaid overdue bill(s) remain reserved. Mark paid only after payment.</div>` : ''}${m.lateIncome.length ? `<div class="notice">${m.lateIncome.length} expected payment(s) are late. They are excluded from the forecast until you update the date or mark received.</div>` : ''}${m.shortfall ? `<div class="notice danger">Your entered cash is ${money(m.shortfall)} short of bills and reserves${m.next ? ' before the next pay' : ''}.</div>` : ''}${m.crunchDays.length ? `<div class="notice">Cash drops below your ${money(m.buffer)} safety buffer on ${dateText(m.crunchDays[0].date)}${m.crunchDays.length > 1 ? ` · ${m.crunchDays.length} days in the next 30` : ''}. Review upcoming bills before spending.</div>` : ''}`;
 }
 function entryRow(x, kind, projected) {
   if (x.projected) return `<article class="entry"><div class="entry-head"><h3>${esc(x.label)}</h3><b>${kind === 'incomes' ? '+' : '−'}${money(x.amount)}</b></div><p>${dateText(x.date)} · Repeating estimate</p>${projected === undefined ? '' : '<p>Projected unreserved cash: '+money(projected)+'</p>'}<p class="small">Confirm the earliest unpaid occurrence to advance this schedule.</p></article>`;
@@ -86,7 +86,7 @@ function profile() {
   const p = state.profile;
   return header('Make it yours.', 'Update your cash whenever you spend or receive money.') + `<section class="card profile-card"><form id="profileForm" class="form-grid">${field('name', 'Your name', p.name, 'text', 'maxlength="80"')}${amountField('balance', 'Net account balance (edit accounts separately)', p.balance, -1000000000).replace('<input','<input readonly')}${amountField('buffer', 'Everyday safety buffer', p.buffer)}${amountField('taxHeld', 'Taxes already reserved within that cash', p.taxHeld)}${amountField('hourlyRate', 'Gross hourly rate for scenarios', p.hourlyRate)}${field('taxRate', 'Your chosen tax / scenario deduction (%)', p.taxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Enter take-home income after payroll deductions. For gross freelance income, this percentage reserves tax. For hourly scenarios, use your estimated deduction rate.</p><button class="primary">Save settings</button></form></section>
     <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p></section>
-    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">Cash Compass ${APP_VERSION} preview · USD</p></section>`;
+    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">Cash Compass ${APP_VERSION} preview · USD</p></section>`;
 }
 function modal() {
   if (!dialog) return '';
@@ -95,7 +95,7 @@ function modal() {
   let title = '', body = '';
   if (dialog.mode === 'edit' && kind === 'transactions') {
     title = x.id ? 'Edit transaction' : 'Record transaction';
-    body = `<form id="transactionForm" class="form-grid">${field('label','Merchant or description',x.label || '', 'text','maxlength="80"')}${selectField('type','Transaction type',x.type || 'expense',[['expense','Expense'],['income','Income'],['transfer','Transfer between accounts']])}${amountField('amount','Amount',x.amount || '',0.01)}${field('date','Transaction date',x.date || today,'date', 'max="'+today+'"')}${categoryField(x.category || 'Other')}${accountSelect('accountId',x.accountId,'From / transaction account')}${accountSelect('toAccountId',x.toAccountId || (state.accounts[1]||state.accounts[0]).id,'To account (transfers only)')}${selectField('adjust','Cash balance',x.id && x.delta === 0 ? 'false' : 'true',[['true','Apply this transaction to cash'],['false','Already included in my cash balance']])}${amountField('taxDelta','Tax reserve from this income (0 for expenses)',x.taxDelta || 0)}<p class="small">Editing reverses the old cash adjustment and applies the new one. Future payments belong in Plan.</p><button class="primary">Save transaction</button></form>`;
+    body = `<form id="transactionForm" class="form-grid">${field('label','Merchant or description',x.label || '', 'text','maxlength="80"')}${selectField('type','Transaction type',x.type || 'expense',[['expense','Expense'],['income','Income'],['transfer','Transfer between accounts']])}${amountField('amount','Amount',x.amount || '',0.01)}${field('date','Transaction date',x.date || today,'date', 'max="'+today+'"')}${categoryField(x.category || 'Other')}${accountSelect('accountId',x.accountId,'From / transaction account')}${accountSelect('toAccountId',x.toAccountId || (state.accounts[1]||state.accounts[0]).id,'To account (transfers only)')}${selectField('adjust','Cash balance',x.id && x.delta === 0 ? 'false' : 'true',[['true','Apply this transaction to cash'],['false','Already included in my cash balance']])}${amountField('taxDelta','Tax reserve from this income (0 for expenses)',x.taxDelta || 0)}<p class="small">Editing reverses the old cash adjustment and applies the new one. Future payments belong in Plan.</p><p class="small">Known merchants fill in category and account as you type the name.</p><button class="primary">Save transaction</button></form>`;
   } else if (dialog.mode === 'edit' && kind === 'budgets') {
     title = x.id ? 'Edit budget category' : 'Add budget category';
     body = `<form id="budgetForm" class="form-grid">${categoryField(x.category || 'Groceries')}${selectField('bucket','Spending bucket',x.bucket || 'flexible',[['income','Income'],['fixed','Fixed bills'],['flexible','Flexible spending'],['occasional','Occasional expenses']])}${amountField('amount','Monthly budget',x.amount || '',0)}${field('start','Start month',x.start || budgetMonth,'month')}${selectField('rollover','Unused budget and overspending',x.rollover ? 'true':'false',[['false','Reset each month'],['true','Carry over to next month']])}<p class="small">Category names match transactions regardless of capitalization. Changes recalculate history from the start month.</p><button class="primary">Save budget</button></form>`;
@@ -110,7 +110,7 @@ function modal() {
     body = `<p class="small">Copy all text and save it somewhere private. Wallet review text may contain purchase details. Restoring pauses capture and clears unprocessed native notifications. To restore, paste a Cash Compass backup and tap Restore. Restoring replaces this plan.</p><form id="restoreForm" class="form-grid"><label>Backup JSON<textarea name="backup" spellcheck="false" required>${esc(JSON.stringify(state, null, 2))}</textarea></label><button class="secondary" type="button" data-action="select-backup">Select all for copying</button><button class="primary">Restore this backup</button></form>`;
   } else {
     title = 'Confirm change';
-    body = `<p>${dialog.mode === 'remove' ? `${kind === 'holdings' ? 'Remove this holding from your portfolio and net worth?' : kind === 'lifeEvents' ? 'Remove this scenario event?' : kind === 'transactions' ? 'Delete '+esc(x.label)+'? This reverses its original cash and tax adjustments. Any settled schedule stays advanced.' : 'Remove '+esc(x.label || x.category)+'? This does not change cash. Repeating entries stop after removal.'}` : dialog.mode === 'demo' ? 'Replace this plan with sample data? Copy a backup first if you need to keep your entries.' : 'Clear your plan and start with no entries? Copy a backup first if you need to keep them.'}</p><button class="primary" data-confirm="yes">${dialog.mode === 'remove' ? 'Remove entry' : 'Replace plan'}</button>`;
+    body = `<p>${dialog.mode === 'remove' ? `${kind === 'holdings' ? 'Remove this holding from your portfolio and net worth?' : kind === 'lifeEvents' ? 'Remove this scenario event?' : kind === 'transactions' ? 'Delete '+esc(x.label)+'? This reverses its original cash and tax adjustments. Any settled schedule stays advanced.' : 'Remove '+esc(x.label || x.category)+'? This does not change cash. Repeating entries stop after removal.'}` : dialog.mode === 'demo' ? 'Replace this plan with sample data? Copy a backup first if you need to keep your entries.' : dialog.mode === 'clear-memory' ? 'Forget all remembered merchants? Category and account suggestions start over; your transactions stay unchanged.' : 'Clear your plan and start with no entries? Copy a backup first if you need to keep them.'}</p><button class="primary" data-confirm="yes">${dialog.mode === 'remove' ? 'Remove entry' : dialog.mode === 'clear-memory' ? 'Clear merchant memory' : 'Replace plan'}</button>`;
   }
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><div class="modal-head"><h2 id="dialogTitle">${title}</h2><button class="close" data-action="close" aria-label="Close dialog">×</button></div>${body}<p id="formError" role="alert" class="danger small"></p></section></div>`;
 }
@@ -150,12 +150,13 @@ document.addEventListener('click', e => {
     } else if (b.dataset.action === 'add') dialog = { mode: 'edit', kind };
     else if (b.dataset.action === 'close') dialog = null;
     else if (b.dataset.action === 'select-backup') { app.querySelector('textarea').select(); flash('Selected. Touch and hold to copy.'); return; }
-    else if (['fresh', 'demo', 'backup'].includes(b.dataset.action)) dialog = { mode: b.dataset.action };
+    else if (['fresh', 'demo', 'backup', 'clear-memory'].includes(b.dataset.action)) dialog = { mode: b.dataset.action };
     else if (b.dataset.confirm && dialog) {
       if (dialog.mode === 'settle') update(next => C.settle(next, dialog.kind, dialog.item.id, b.dataset.confirm === 'adjust'));
       else if (dialog.mode === 'remove') update(next => { if(dialog.kind==='accounts'){C.removeAccount(next,dialog.item.id);return;} if (dialog.kind === 'transactions') { C.removeTransaction(next,dialog.item.id); return; } next[dialog.kind] = next[dialog.kind].filter(x => x.id !== dialog.item.id); });
       else if (dialog.mode === 'fresh') { pauseWallet(); persist(C.blank()); pauseWallet(true); tab = 'profile'; }
       else if (dialog.mode === 'demo') {pauseWallet();persist(C.demo());pauseWallet(true);}
+      else if (dialog.mode === 'clear-memory') { update(next => C.clearMerchantMemory(next)); }
       dialog = null; reply = ''; flash('Plan saved');
     } else return;
     render();
@@ -201,6 +202,22 @@ document.addEventListener('submit', e => {
   } catch (error) { const el = document.getElementById('formError'); if (el) el.textContent = error.message; else flash(error.message); }
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !dialog && (tab === 'home' || tab === 'plan')) render(); });
+// Merchant memory auto-suggest (roadmap #3): when typing a merchant name in a new
+// transaction, pre-fill category and account from memory unless already changed.
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (!t || t.name !== 'label' || !t.form || t.form.id !== 'transactionForm') return;
+  if (!dialog || dialog.mode !== 'edit' || (dialog.item && dialog.item.id)) return;
+  const s = C.suggestMerchant(state, t.value);
+  if (!s) return;
+  const cat = t.form.querySelector('[name="category"]'), acc = t.form.querySelector('[name="accountId"]');
+  if (cat && !cat.dataset.touched) cat.value = s.category;
+  if (acc && !acc.dataset.touched && [...acc.options].some(o => o.value === s.accountId)) acc.value = s.accountId;
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t && (t.name === 'category' || t.name === 'accountId') && t.form && t.form.id === 'transactionForm') t.dataset.touched = '1';
+});
 let planMonth=C.localDate().slice(0,7), planDay=C.localDate();
 let transactionQuery = '', transactionType = 'all', budgetMonth = C.localDate().slice(0,7);
 function selectField(name, title, value, options) {

@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], forecastSettings: forecastOptions(), hiddenCards: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0 }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -67,6 +67,18 @@
     result.balanceHistory=list(raw.balanceHistory).map(h=>{if(!validDate(h.date)||h.date>localDate())throw Error('Invalid balance history date.');return {date:h.date,value:number(h.value,-MAX),investments:number(h.investments||0)};}).sort((a,b)=>a.date.localeCompare(b.date));
     if(new Set(result.balanceHistory.map(h=>h.date)).size!==result.balanceHistory.length)throw Error('Duplicate balance history dates.');
     result.lifeEvents=list(raw.lifeEvents).map((e,i)=>lifeEvent({...e,id:'event-'+i}));
+    result.merchantMemory={};
+    if(raw.merchantMemory!==undefined){
+      if(!raw.merchantMemory||typeof raw.merchantMemory!=='object'||Array.isArray(raw.merchantMemory))throw Error('Invalid merchant memory.');
+      const keys=Object.keys(raw.merchantMemory);
+      if(keys.length>500)throw Error('Merchant memory is too large.');
+      keys.forEach(k=>{
+        if(typeof k!=='string'||!k||k.length>80)throw Error('Invalid merchant memory.');
+        const v=raw.merchantMemory[k];
+        if(!v||typeof v!=='object')throw Error('Invalid merchant memory.');
+        result.merchantMemory[k]={label:label(v.label||k),category:label(v.category||'Other'),accountId:typeof v.accountId==='string'?v.accountId:'',uses:Number.isInteger(v.uses)&&v.uses>0?v.uses:1};
+      });
+    }
     result.forecastSettings=forecastOptions(raw.forecastSettings);
     result.hiddenCards=list(raw.hiddenCards).filter(x=>['setup','budget','spending','transactions','worth','goals','recurring','investments','advice'].includes(x));
     result.wallet=walletData(raw.wallet);
@@ -197,10 +209,23 @@
       low = Math.min(low, running); endBalance = running;
       return { ...event, available: dollars(running) };
     });
+    // Cash-crunch warnings (roadmap #11): dates in the 30-day window where the
+    // running unreserved cash drops below the everyday safety buffer. Only
+    // computed when a buffer is set, so it never duplicates the shortfall warning.
+    const bufferCents = cents(state.profile.buffer);
+    const crunchByDay = new Map();
+    if (bufferCents > 0) timeline.forEach(event => {
+      if (cents(event.available) < bufferCents) {
+        const prior = crunchByDay.get(event.effective);
+        if (!prior || cents(event.available) < cents(prior.available)) crunchByDay.set(event.effective, { date: event.effective, available: event.available });
+      }
+    });
+    const crunchDays = [...crunchByDay.values()].sort((a, b) => a.date.localeCompare(b.date));
     return { next, before, held: dollars(held), reserved: dollars(reserved), safe: next ? dollars(Math.max(0, available)) : null,
       shortfall: dollars(Math.max(0, -available)), days: next ? Math.max(1, daysBetween(today, next.date)) : null,
       overdue: state.bills.filter(x => x.date < today), lateIncome: state.incomes.filter(x => x.date < today),
-      loss: dollars(loss), lossEstimate: dollars(lossEstimate), low: dollars(low), endBalance: dollars(endBalance), timeline, end };
+      loss: dollars(loss), lossEstimate: dollars(lossEstimate), low: dollars(low), endBalance: dollars(endBalance), timeline, end,
+      buffer: dollars(bufferCents), crunchDays };
   }
   const frequencies = ['none', 'weekly', 'biweekly', 'monthly', 'yearly'];
   function repeat(value) {
@@ -256,6 +281,7 @@
     if(old && old.walletId){t.walletId=old.walletId;t.walletRevision=t.walletRevision||old.walletRevision;}
     applyLedger(state,old,t);
     if (old) state.transactions[state.transactions.indexOf(old)] = t; else state.transactions.push(t);
+    learnMerchant(state, t);
     return state;
   }
   function removeTransaction(state, id) {
@@ -264,6 +290,31 @@
     applyLedger(state,t,null);
     state.transactions = state.transactions.filter(x => x.id !== id);
   }
+  // Merchant-to-category memory (roadmap #3): remember the category and account
+  // used for each merchant so future transactions can pre-fill them. Learned
+  // automatically on save; transfers are skipped because their category is structural.
+  function merchantKey(value) {
+    return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ').slice(0, 80);
+  }
+  function learnMerchant(state, t) {
+    if (!t || t.type === 'transfer') return;
+    const key = merchantKey(t.label);
+    if (!key) return;
+    const mem = state.merchantMemory || (state.merchantMemory = {});
+    const prior = mem[key];
+    mem[key] = { label: String(t.label).trim().slice(0, 80), category: t.category, accountId: t.accountId, uses: ((prior && prior.uses) || 0) + 1 };
+    const keys = Object.keys(mem);
+    if (keys.length > 500) delete mem[keys[0]];
+  }
+  function suggestMerchant(state, value) {
+    const key = merchantKey(value);
+    const hit = key && state.merchantMemory && state.merchantMemory[key];
+    if (!hit) return null;
+    let accountId = hit.accountId;
+    try { accountId = accountById(state, accountId).id; } catch (e) { accountId = state.accounts && state.accounts.length ? state.accounts[0].id : ''; }
+    return { category: hit.category, accountId };
+  }
+  function clearMerchantMemory(state) { state.merchantMemory = {}; }
   function settle(state, kind, id, adjustBalance = true, today = localDate()) {
     if (kind !== 'incomes' && kind !== 'bills') throw Error('Invalid entry type.');
     const index = state[kind].findIndex(x => x.id === id);
@@ -557,7 +608,7 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

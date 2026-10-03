@@ -1,3 +1,8 @@
+# Cash Compass 1.7.0 preview
+
+- **Cash-crunch warnings (roadmap #11):** the 30-day forecast now flags dates where your projected cash drops below your everyday safety buffer, so you get warned before a shortfall instead of after. Shows on Today and in Plan whenever a buffer is set in You.
+- **Merchant memory (roadmap #3):** Cash Compass now remembers the category and account you used for each merchant. Start typing a merchant name when recording a transaction and the form pre-fills both — edit either field and it respects your choice from then on. Manage it in You → Your data (see the remembered count, clear it any time). Learned automatically from saved transactions; transfers are skipped. Stored only on this device, included in backups.
+
 # Cash Compass 1.6.1 preview
 
 - Expanded sample plan populates every main screen with fictional accounts, twelve months of ledger and net-worth history, budgets, recurring income/bills, goals, investments, and forecast scenarios.
