@@ -313,6 +313,62 @@
     applyLedger(state,t,null);
     state.transactions = state.transactions.filter(x => x.id !== id);
   }
+  // Split transactions (roadmap #28): divide one purchase across categories.
+  // Parts must sum to the original amount to the cent; the original's cash
+  // adjustment is reversed and each part applies its own proportionally.
+  function splitTransaction(state, id, parts) {
+    const t = state.transactions.find(x => x.id === id);
+    if (!t) throw Error('Transaction not found.');
+    if (t.type === 'transfer') throw Error('Transfers cannot be split.');
+    if (t.taxDelta) throw Error('Transactions with a tax reserve cannot be split.');
+    if (!Array.isArray(parts) || parts.length < 2) throw Error('Split into at least 2 parts.');
+    const clean = parts.map(p => {
+      if (!p || typeof p !== 'object') throw Error('Invalid split part.');
+      return { category: label(p.category || 'Other'), amount: number(p.amount, 0.01) };
+    });
+    if (clean.reduce((s, p) => s + cents(p.amount), 0) !== cents(t.amount))
+      throw Error('Split parts must add up to ' + dollars(t.amount) + '.');
+    removeTransaction(state, id);
+    const stamp = Date.now().toString(36);
+    return clean.map((p, i) => {
+      saveTransaction(state, { id: t.id + '-split-' + i + '-' + stamp, label: t.label, type: t.type,
+        amount: p.amount, date: t.date, category: p.category, accountId: t.accountId,
+        adjust: t.delta !== 0, tags: i === 0 ? t.tags : [], note: i === 0 ? t.note : '' });
+      return state.transactions[state.transactions.length - 1];
+    });
+  }
+  // Duplicate cleanup (roadmap #33): group recorded transactions by date,
+  // merchant, amount, type, and accounts; merge unions tags and keeps the
+  // longest note. Only merge true double-records — two legitimate same-day
+  // purchases can match, and merging those would remove real spending.
+  function findDuplicates(state) {
+    const groups = new Map();
+    (state.transactions || []).forEach(t => {
+      const key = [t.date, merchantKey(t.label), cents(t.amount), t.type, t.accountId, t.toAccountId || ''].join('|');
+      const g = groups.get(key) || [];
+      g.push(t);
+      groups.set(key, g);
+    });
+    return [...groups.values()].filter(g => g.length > 1)
+      .map(g => [...g].sort((a, b) => a.id.localeCompare(b.id)));
+  }
+  function mergeDuplicates(state, ids) {
+    if (!Array.isArray(ids) || ids.length < 2) throw Error('Choose at least 2 duplicates to merge.');
+    const kept = state.transactions.find(t => t.id === ids[0]);
+    if (!kept) throw Error('Transaction not found.');
+    const tags = new Set(kept.tags || []);
+    let note = kept.note || '';
+    ids.slice(1).forEach(id => {
+      const t = state.transactions.find(x => x.id === id);
+      if (!t) throw Error('Transaction not found.');
+      (t.tags || []).forEach(tag => tags.add(tag));
+      if ((t.note || '').length > note.length) note = t.note;
+      removeTransaction(state, id);
+    });
+    kept.tags = [...tags].sort().slice(0, 10);
+    kept.note = note;
+    return kept;
+  }
   // Merchant-to-category memory (roadmap #3): remember the category and account
   // used for each merchant so future transactions can pre-fill them. Learned
   // automatically on save; transfers are skipped because their category is structural.
@@ -756,7 +812,7 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;

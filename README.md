@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.11.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.12.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.12.0: Split transactions and duplicate cleanup
+
+- **Split transactions** (roadmap #28): open any transaction and choose “Split across categories.” Divide one purchase into up to 10 parts with their own categories; the parts must add up to the original to the cent, and cash adjustments carry over automatically. Tags and notes stay on the first part.
+- **Duplicate cleanup** (roadmap #33): Activity → “Find duplicates” lists transactions that match on date, merchant, amount, type, and accounts, and merges true double-records into one — combining tags and keeping the longest note. A warning reminds you that two legitimate same-day purchases can look identical.
 
 ## New in 1.11.0: Tags, notes, and saved views
 

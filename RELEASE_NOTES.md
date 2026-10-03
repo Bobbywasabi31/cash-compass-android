@@ -1,3 +1,8 @@
+# Cash Compass 1.12.0 preview
+
+- **Split transactions (roadmap #28):** any transaction can now be divided across categories. Open it and choose “Split across categories” — add up to 10 parts, each with its own category, that must total the original amount to the cent. The original is replaced; cash adjustments carry over per part, and tags/notes stay on the first part.
+- **Duplicate cleanup (roadmap #33):** Activity → “Find duplicates” lists transactions matching on date, merchant, amount, type, and accounts, and merges true double-records into one — combining tags and keeping the longest note. The tool warns that two legitimate same-day purchases can look identical, so only merge real double-records.
+
 # Cash Compass 1.11.0 preview
 
 - **Tags and notes (roadmap #29):** every transaction can now carry up to 10 free-form tags plus a note. Tags appear as chips on each Activity row, are included in search, and can be filtered — handy for tracking things like #reimbursable, #tax-deductible, or #vacation across categories.

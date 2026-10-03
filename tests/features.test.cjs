@@ -261,3 +261,44 @@ test('saved filters validate and round-trip',()=>{
  assert.throws(()=>C.normalize({...raw,savedFilters:'nope'}));
  assert.throws(()=>C.normalize({...raw,savedFilters:[{name:'x',filters:{start:'bad-date'}}]}));
 });
+
+test('split transaction divides across categories and preserves cash',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ C.saveTransaction(s,{id:'a',label:'Store',type:'expense',amount:100,date:'2026-09-18',category:'Groceries',accountId:'checking',tags:['weekly'],note:'big shop'});
+ const before=s.accounts.find(a=>a.id==='checking').balance;
+ const parts=C.splitTransaction(s,'a',[{category:'Groceries',amount:60},{category:'Household',amount:40}]);
+ assert.equal(parts.length,2);
+ assert.equal(parts[0].category,'Groceries');
+ assert.equal(parts[1].category,'Household');
+ assert.equal(parts[0].amount,60);
+ // Original replaced; cash unchanged (100 was already deducted).
+ assert.equal(s.transactions.length,2);
+ assert.equal(s.accounts.find(a=>a.id==='checking').balance,before);
+ // Tags and note stay on the first part.
+ assert.deepEqual(parts[0].tags,['weekly']);
+ assert.equal(parts[0].note,'big shop');
+ assert.deepEqual(parts[1].tags,[]);
+ // Parts must sum to the original.
+ C.saveTransaction(s,{id:'b',label:'X',type:'expense',amount:10,date:'2026-09-18',accountId:'checking'});
+ assert.throws(()=>C.splitTransaction(s,'b',[{category:'A',amount:6},{category:'B',amount:5}]));
+ assert.throws(()=>C.splitTransaction(s,'b',[{category:'A',amount:10}]));
+});
+
+test('duplicate cleanup finds and merges double-records',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:1000});
+ const add=(id,label,amount,date,extra={})=>C.saveTransaction(s,{id,label,type:'expense',amount,date,category:'Dining',accountId:'checking',adjust:false,...extra});
+ add('a','SQ *CAFE 1234',25,'2026-09-10',{tags:['lunch']});
+ add('b','TST*CAFE',25,'2026-09-10',{note:'with sam'});
+ add('c','Cafe',25,'2026-09-11'); // different day: not a duplicate
+ add('d','Grocery',25,'2026-09-10');
+ const dups=C.findDuplicates(s);
+ assert.equal(dups.length,1);
+ assert.equal(dups[0].length,2);
+ const kept=C.mergeDuplicates(s,dups[0].map(t=>t.id));
+ assert.equal(s.transactions.length,3);
+ assert.deepEqual(kept.tags,['lunch']);
+ assert.equal(kept.note,'with sam');
+ assert.throws(()=>C.mergeDuplicates(s,['only-one']));
+});
