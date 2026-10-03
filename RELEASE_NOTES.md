@@ -1,3 +1,8 @@
+# 1.49.0
+
+- Tablet/landscape/foldable polish (#87): better layouts on tablets, landscape phones, and foldables (dual-screen support).
+- Performance at scale (#90): faster transaction search, verified smooth with 10,000+ transactions.
+
 # 1.48.0
 
 - Receipt photo attachments (#35): snap a photo of your receipt (camera on Android) or attach from gallery. Stored locally with the transaction, tap the 🧾 icon to view.
