@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
                         com.google.mlkit.vision.common.InputImage image =
                                 com.google.mlkit.vision.common.InputImage.fromFilePath(MainActivity.this, imageUri);
                         com.google.mlkit.vision.text.TextRecognition
-                                .getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT)
+                                .getClient(new com.google.mlkit.vision.text.latin.TextRecognizerOptions.Builder().build())
                                 .process(image)
                                 .addOnSuccessListener(visionText -> callback("cashCompassReceiptOCR", visionText.getText()))
                                 .addOnFailureListener(e -> { /* OCR unavailable; manual entry still works */ });
