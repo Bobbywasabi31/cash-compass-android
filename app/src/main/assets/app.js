@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.32.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.33.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -440,7 +440,7 @@ function home(){
  const spending=lineChart([{name:'This month',values:cumulative(month)},{name:'Last month',values:cumulative(previous)}],Array.from({length:count},(_,i)=>'Day '+(i+1)),'Cumulative recorded spending',['#ff692f','#99958f']);
  const cards={
  setup:panel('Getting started',`<div class="setup-status"><strong>${checks.filter(x=>x[1]).length}/5 complete</strong><span>Your financial picture, one step at a time.</span></div>${checks.map(([label,done,key])=>`<button class="check-row" data-tab="${key}"><span class="${done?'positive':''}">${done?'✓':'○'}</span>${label}<span>→</span></button>`).join('')}`),
- budget:panel('Budget <small>'+month+'</small>',['fixed','flexible','occasional'].map(bucket=>{const rows=b.rows.filter(x=>x.bucket===bucket);return progressRow({fixed:'Fixed',flexible:'Flexible',occasional:'Non-monthly'}[bucket],totalAmounts(rows.map(x=>({amount:x.spent}))),totalAmounts(rows.map(x=>({amount:x.available}))));}).join('')+(b.unbudgeted?`<p class="small danger">${money(b.unbudgeted)} of spending is unbudgeted.</p>`:''),routeButton('budgets')),
+ budget:panel('Budget <small>'+month+'</small>',['fixed','flexible','occasional'].map(bucket=>{const rows=b.rows.filter(x=>x.bucket===bucket);return progressRow({fixed:'Fixed',flexible:'Flexible',occasional:'Non-monthly'}[bucket],totalAmounts(rows.map(x=>({amount:x.spent}))),totalAmounts(rows.map(x=>({amount:x.available}))));}).join('')+`<details><summary>Per-category progress</summary>${b.rows.filter(x=>x.bucket!=='income').slice(0,8).map(x=>progressRow(x.category,x.spent,x.available)).join('')||'<p class="small">No categories yet.</p>'}</details>`+(b.unbudgeted?`<p class="small danger">${money(b.unbudgeted)} of spending is unbudgeted.</p>`:''),routeButton('budgets')),
  spending:panel('Spending <small>'+money(r.expense)+' this month</small>',spending,routeButton('cashflow')),
  transactions:panel('Transactions <small>Most recent</small>',recentRows([...state.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)),routeButton('transactions')),
  worth:panel(money(C.netWorth(state))+' <small>net worth</small>',lineChart([{name:'Recorded net worth',values:history.map(h=>h.value)}],history.map(h=>h.date),'Net worth history'),routeButton('accounts')),
@@ -460,6 +460,7 @@ function insightsFeed() {
     if (c.kind === 'budget') return `${money(c.detail.spent)} of ${money(c.detail.budget)}`;
     if (c.kind === 'bills') return c.detail.bills.map(b => `${esc(b.label)} ${money(b.amount)}`).join(' · ');
     if (c.kind === 'savings') return `${c.detail.from}% → ${c.detail.to}% over 3 months`;
+    if (c.kind === 'anomaly') return c.detail.amount ? `${money(c.detail.amount)} · ${esc(c.detail.reason)}` : 'Review in Transactions → Find duplicates.';
     return 'At your recent spending pace';
   };
   return `<section class="section"><h2 class="section-title">Insights</h2><div class="insights-grid">${cards.map(c => `<div class="insight tone-${c.tone}"><b>${esc(c.title)}</b><span>${detail(c)}</span></div>`).join('')}</div></section>`;

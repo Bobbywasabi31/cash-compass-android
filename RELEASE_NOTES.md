@@ -1,3 +1,8 @@
+# Cash Compass 1.33.0 preview
+
+- **Anomaly detection (roadmap #67):** Insights flags unusually large charges and likely duplicates.
+- **Budget vs actual progress bars (roadmap #71):** Home budget card with per-category progress.
+
 # Cash Compass 1.32.0 preview
 
 - **Spending calendar heatmap (roadmap #64):** Reports → Calendar with daily spend intensity shading.

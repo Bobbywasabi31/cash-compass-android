@@ -85,7 +85,29 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+  function anomalies(state) {
+    const large = [];
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const cat = (t.category || 'Other').toLowerCase();
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+    Object.entries(byCategory).forEach(([cat, txs]) => {
+      if (txs.length < 3) return;
+      const avg = txs.reduce((s, t) => s + cents(t.amount), 0) / txs.length;
+      txs.forEach(t => {
+        if (cents(t.amount) > avg * 3 && cents(t.amount) > 10000) { // 3x avg and > $100
+          large.push({ ...t, reason: `${(cents(t.amount) / avg).toFixed(1)}x category average`, avg: dollars(avg) });
+        }
+      });
+    });
+    const dups = findDuplicates(state).slice(0, 10);
+    return { large: large.sort((a, b) => cents(b.amount) - cents(a.amount)).slice(0, 10), duplicates: dups };
+  }
+  // Spending calendar heatmap (roadmap #64): daily spend intensity.
   function spendHeatmap(state, month) {
     if (!validDate(month + '-01')) throw Error('Choose a valid month.');
     const days = {};
@@ -269,7 +291,29 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+  function anomalies(state) {
+    const large = [];
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const cat = (t.category || 'Other').toLowerCase();
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+    Object.entries(byCategory).forEach(([cat, txs]) => {
+      if (txs.length < 3) return;
+      const avg = txs.reduce((s, t) => s + cents(t.amount), 0) / txs.length;
+      txs.forEach(t => {
+        if (cents(t.amount) > avg * 3 && cents(t.amount) > 10000) { // 3x avg and > $100
+          large.push({ ...t, reason: `${(cents(t.amount) / avg).toFixed(1)}x category average`, avg: dollars(avg) });
+        }
+      });
+    });
+    const dups = findDuplicates(state).slice(0, 10);
+    return { large: large.sort((a, b) => cents(b.amount) - cents(a.amount)).slice(0, 10), duplicates: dups };
+  }
+  // Spending calendar heatmap (roadmap #64): daily spend intensity.
   function spendHeatmap(state, month) {
     if (!validDate(month + '-01')) throw Error('Choose a valid month.');
     const days = {};
@@ -379,7 +423,29 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Spending calendar heatmap (roadmap #64): daily spend intensity.
+    // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+  function anomalies(state) {
+    const large = [];
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const cat = (t.category || 'Other').toLowerCase();
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+    Object.entries(byCategory).forEach(([cat, txs]) => {
+      if (txs.length < 3) return;
+      const avg = txs.reduce((s, t) => s + cents(t.amount), 0) / txs.length;
+      txs.forEach(t => {
+        if (cents(t.amount) > avg * 3 && cents(t.amount) > 10000) { // 3x avg and > $100
+          large.push({ ...t, reason: `${(cents(t.amount) / avg).toFixed(1)}x category average`, avg: dollars(avg) });
+        }
+      });
+    });
+    const dups = findDuplicates(state).slice(0, 10);
+    return { large: large.sort((a, b) => cents(b.amount) - cents(a.amount)).slice(0, 10), duplicates: dups };
+  }
+  // Spending calendar heatmap (roadmap #64): daily spend intensity.
   function spendHeatmap(state, month) {
     if (!validDate(month + '-01')) throw Error('Choose a valid month.');
     const days = {};
@@ -1030,6 +1096,13 @@
       if (rates.length >= 2 && rates[rates.length - 1] > rates[0] + 5)
         cards.push({ kind: 'savings', title: 'Savings rate is climbing', detail: { from: rates[0], to: rates[rates.length - 1] }, tone: 'good' });
     }
+    const anom = anomalies(state);
+    anom.large.slice(0, 2).forEach(a => {
+      cards.push({ kind: 'anomaly', title: `Unusually large: ${a.label}`, detail: { amount: a.amount, reason: a.reason }, tone: 'warn' });
+    });
+    if (anom.duplicates.length) {
+      cards.push({ kind: 'anomaly', title: `${anom.duplicates.length} possible duplicate${anom.duplicates.length === 1 ? '' : 's'} found`, detail: {}, tone: 'warn' });
+    }
     return cards.slice(0, 8);
   }
   // Auto-drafted monthly review (roadmap #80): structured data for a
@@ -1065,6 +1138,28 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Anomaly detection (roadmap #67): unusually large charges and likely duplicates.
+  function anomalies(state) {
+    const large = [];
+    const byCategory = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense') return;
+      const cat = (t.category || 'Other').toLowerCase();
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+    Object.entries(byCategory).forEach(([cat, txs]) => {
+      if (txs.length < 3) return;
+      const avg = txs.reduce((s, t) => s + cents(t.amount), 0) / txs.length;
+      txs.forEach(t => {
+        if (cents(t.amount) > avg * 3 && cents(t.amount) > 10000) { // 3x avg and > $100
+          large.push({ ...t, reason: `${(cents(t.amount) / avg).toFixed(1)}x category average`, avg: dollars(avg) });
+        }
+      });
+    });
+    const dups = findDuplicates(state).slice(0, 10);
+    return { large: large.sort((a, b) => cents(b.amount) - cents(a.amount)).slice(0, 10), duplicates: dups };
   }
   // Spending calendar heatmap (roadmap #64): daily spend intensity.
   function spendHeatmap(state, month) {
@@ -1995,7 +2090,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

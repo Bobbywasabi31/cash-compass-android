@@ -927,3 +927,20 @@ test('dailyBalanceForecast projects balances',()=>{
  assert.ok(f.days['2026-09-15']<f.days['2026-09-14']);
  assert.ok(f.days['2026-09-20']<f.days['2026-09-19']);
 });
+
+test('anomalies detect large charges and duplicates',()=>{
+ const s=C.blank();
+ // Normal food transactions
+ for(let i=0;i<5;i++) s.transactions.push({id:'f'+i,label:'Food',amount:50,date:'2026-09-0'+(i+1),type:'expense',category:'Food',accountId:'cash'});
+ // Anomalously large
+ s.transactions.push({id:'big',label:'Fancy dinner',amount:500,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const a=C.anomalies(s);
+ assert.equal(a.large.length,1);
+ assert.equal(a.large[0].id,'big');
+ assert.ok(a.large[0].reason.includes('x category average'));
+ // Duplicates
+ s.transactions.push({id:'dup1',label:'Coffee',amount:5,date:'2026-09-16',type:'expense',category:'Food',accountId:'cash'});
+ s.transactions.push({id:'dup2',label:'Coffee',amount:5,date:'2026-09-16',type:'expense',category:'Food',accountId:'cash'});
+ const a2=C.anomalies(s);
+ assert.ok(a2.duplicates.length>0);
+});
