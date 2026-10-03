@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.42.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.43.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -179,7 +179,7 @@ function autoBackupSection() {
 function profile() {
   const p = state.profile;
   return header('Make it yours.', 'Update your cash whenever you spend or receive money.') + `<section class="card profile-card"><form id="profileForm" class="form-grid">${field('name', 'Your name', p.name, 'text', 'maxlength="80"')}${amountField('balance', 'Net account balance (edit accounts separately)', p.balance, -1000000000).replace('<input','<input readonly')}${amountField('buffer', 'Everyday safety buffer', p.buffer)}${amountField('taxHeld', 'Taxes already reserved within that cash', p.taxHeld)}${amountField('hourlyRate', 'Gross hourly rate for scenarios', p.hourlyRate)}${field('taxRate', 'Your chosen tax / scenario deduction (%)', p.taxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Enter take-home income after payroll deductions. For gross freelance income, this percentage reserves tax. For hourly scenarios, use your estimated deduction rate.</p>${field('sideTaxRate', 'Side-income tax set-aside rate (%)', p.sideTaxRate == null ? 25 : p.sideTaxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Untaxed freelance/gig income is tracked separately in Reports; this rate sets the quarterly set-aside target.</p><label class="check-label"><input type="checkbox" name="taxReminder"${p.taxReminder ? ' checked' : ''}> Remind me about quarterly estimated-tax deadlines</label><button class="primary">Save settings</button></form></section>
-    <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Appearance</h2><form id="themeForm" class="form-grid">${selectField('theme','Theme',localStorage.getItem('cc-theme')||'system',[['system','System'],['light','Light'],['dark','Dark'],['high-contrast','High contrast']])}<button class="primary">Save theme</button></form></section><section class="section card profile-card"><h2 class="section-title">Connected AI coach (optional)</h2><p class="small">Bring your own API key for a connected AI coach. Off by default. Only summarized totals are sent — never individual transactions. Your key is stored only on this device.</p><form id="aiCoachForm" class="form-grid">${field('aiKey','API key',localStorage.getItem('cc-ai-key')||'','password','maxlength="200"').replace(' required','')}${selectField('aiEnabled','Enable connected coach',localStorage.getItem('cc-ai-enabled')==='1'?'yes':'no',[['no','Off'],['yes','On']])}<button class="primary">Save</button></form></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p></section>
+    <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Appearance</h2><form id="themeForm" class="form-grid">${selectField('theme','Theme',localStorage.getItem('cc-theme')||'system',[['system','System'],['light','Light'],['dark','Dark'],['high-contrast','High contrast']])}<button class="primary">Save theme</button></form></section>${errorLogSection()}<section class="section card profile-card"><h2 class="section-title">Connected AI coach (optional)</h2><p class="small">Bring your own API key for a connected AI coach. Off by default. Only summarized totals are sent — never individual transactions. Your key is stored only on this device.</p><form id="aiCoachForm" class="form-grid">${field('aiKey','API key',localStorage.getItem('cc-ai-key')||'','password','maxlength="200"').replace(' required','')}${selectField('aiEnabled','Enable connected coach',localStorage.getItem('cc-ai-enabled')==='1'?'yes':'no',[['no','Off'],['yes','On']])}<button class="primary">Save</button></form></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p></section>
     <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button class="quiet" data-action="export-all">Export all data</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">Cash Compass ${APP_VERSION} preview · USD</p></section>${autoBackupSection()}`;
 }
 function modal() {
@@ -567,6 +567,21 @@ function onboardingWizard(){
  }
  return `<div class="onboarding"><div class="onboarding-card"><h2>${s.title}</h2><p>${s.body}</p>${s.form==='cash'?`<form id="obCashForm" class="form-grid">${amountField('balance','Total cash',state.profile.balance||0)}<button class="primary">Continue</button></form>`:''}${s.form==='payday'?`<form id="obPaydayForm" class="form-grid">${field('date','Next payday',C.localDate(),'date')}${amountField('amount','Expected amount',0)}<button class="primary">Continue</button></form>`:''}${s.form==='bills'?`<p class="small">You can add bills in Recurring later. For now, let's continue.</p><button class="primary" data-action="ob-next">Continue</button>`:''}${s.form==='buffer'?`<form id="obBufferForm" class="form-grid">${amountField('buffer','Safety buffer',state.profile.buffer||0)}<button class="primary">Finish setup</button></form>`:''}${onboardingStep===0?'<button class="primary" data-action="ob-next">Get started</button>':''}${onboardingStep>0?'<button class="quiet" data-action="ob-skip">Skip setup</button>':''}</div></div>`;
 }
+// Local error log viewer (roadmap #98).
+function logError(message, source) {
+  try {
+    const logs = JSON.parse(localStorage.getItem('cc-error-log') || '[]');
+    logs.push({ time: new Date().toISOString(), message: String(message).slice(0, 500), source: String(source || '').slice(0, 200) });
+    // Keep last 100
+    while (logs.length > 100) logs.shift();
+    localStorage.setItem('cc-error-log', JSON.stringify(logs));
+  } catch(e) {}
+}
+function errorLogSection(){
+ let logs = [];
+ try { logs = JSON.parse(localStorage.getItem('cc-error-log') || '[]').reverse(); } catch(e) {}
+ return panel('Error log', `${logs.length?`<div class="table-scroll"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody>${logs.slice(0, 20).map(l=>`<tr><td><small>${esc(l.time.slice(0, 19).replace('T', ' '))}</small></td><td><small>${esc(l.message)}</small></td></tr>`).join('')}</tbody></table></div><p class="small">Showing recent 20 of ${logs.length}. No automatic upload — export manually for bug reports.</p>`:'<p class="small">No errors logged. Errors are stored only on this device.</p>'}<div class="row-actions"><button class="quiet" data-action="error-export">Export log</button><button class="quiet" data-action="error-clear">Clear log</button></div>`);
+}
 // Privacy mode (roadmap #84).
 function privacyToggle(){
  const enabled = localStorage.getItem('cc-privacy') === '1';
@@ -881,6 +896,8 @@ function redesignClick(b){
  if(b.dataset.action==='ob-next'){onboardingStep++;render();return true;}
  if(b.dataset.action==='ob-skip'){localStorage.setItem('cc-onboarded','1');render();return true;}
  if(b.dataset.action==='privacy'){const enabled=localStorage.getItem('cc-privacy')==='1';localStorage.setItem('cc-privacy',enabled?'0':'1');applyPrivacy();render();return true;}
+ if(b.dataset.action==='error-export'){const logs=localStorage.getItem('cc-error-log')||'[]';download('cash-compass-error-log.json',logs,'application/json');return true;}
+ if(b.dataset.action==='error-clear'){localStorage.removeItem('cc-error-log');render();flash('Error log cleared.');return true;}
  if(b.dataset.action==='customize'){dialog={mode:'customize'};render();return true;}
  if(b.dataset.action==='snapshot'){update(next=>C.snapshot(next));render();flash('Today’s balances recorded');return true;}
  if(b.dataset.action==='tx-clear'){transactionQuery='';transactionType='all';txAccount='all';txCategory='';txTag='all';txMin='';txMax='';txStart='';txEnd='';txLimit=100;selectedTransactions.clear();render();return true;}
@@ -1015,6 +1032,9 @@ setInterval(()=>{if(!document.hidden)walletRefresh();},15000);
 
 applyTheme();
 applyPrivacy();
+// Capture errors for local log
+window.addEventListener('error', e => logError(e.message, e.filename + ':' + e.lineno));
+window.addEventListener('unhandledrejection', e => logError(e.reason, 'promise'));
 render();
 syncReminders();
 walletRefresh();

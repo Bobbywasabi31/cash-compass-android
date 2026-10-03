@@ -1,3 +1,8 @@
+# Cash Compass 1.43.0 preview
+
+- **LICENSE (roadmap #96):** MIT license.
+- **Error log viewer (roadmap #98):** View/export local errors.
+
 # Cash Compass 1.42.0 preview
 
 - **Onboarding wizard (roadmap #83):** 4-step setup for new users.
