@@ -1005,3 +1005,25 @@ test('shareSummary generates text summary',()=>{
  assert.ok(text.includes('Safe to spend'));
  assert.ok(text.includes('Net worth'));
 });
+
+test('fullExport includes all data',()=>{
+ const s=C.blank();
+ s.transactions.push({id:'t1',label:'Test',amount:100,date:'2026-09-15',type:'expense',category:'Food',accountId:'cash'});
+ const json=C.fullExport(s);
+ const data=JSON.parse(json);
+ assert.ok(data.transactions);
+ assert.equal(data.transactions.length,1);
+ assert.ok(data.profile);
+ assert.ok(data.exported);
+});
+
+test('addAnnotation validates and sorts',()=>{
+ const s=C.blank();
+ const anns=C.addAnnotation(s,'Got new job','2026-09-15');
+ assert.equal(anns.length,1);
+ assert.equal(anns[0].label,'Got new job');
+ const anns2=C.addAnnotation({...s,annotations:anns},'Bought house','2026-08-01');
+ assert.equal(anns2[0].label,'Bought house'); // sorted by date
+ assert.throws(()=>C.addAnnotation(s,'','2026-09-15'));
+ assert.throws(()=>C.addAnnotation(s,'Test','bad-date'));
+});

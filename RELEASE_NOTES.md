@@ -1,3 +1,8 @@
+# Cash Compass 1.38.0 preview
+
+- **Net worth annotations (roadmap #69):** Mark major events on the net worth chart.
+- **Full data export (roadmap #92):** Export everything as JSON.
+
 # Cash Compass 1.37.0 preview
 
 - **Report export (roadmap #70):** Reports → Export CSV and Print/PDF.

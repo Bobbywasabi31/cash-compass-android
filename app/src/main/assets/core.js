@@ -85,7 +85,39 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Report export (roadmap #70): generate CSV for a period.
+    // Full data export (roadmap #92): everything as JSON.
+  function fullExport(state) {
+    return JSON.stringify({
+      exported: new Date().toISOString(),
+      version: '1.38.0',
+      profile: state.profile,
+      accounts: state.accounts,
+      transactions: state.transactions,
+      bills: state.bills,
+      incomes: state.incomes,
+      budgets: state.budgets,
+      goals: state.goals,
+      holdings: state.holdings,
+      dividends: state.dividends || [],
+      contributions: state.contributions || [],
+      manualAssets: state.manualAssets || [],
+      debts: state.debts || [],
+      sinkingFunds: state.sinkingFunds || [],
+      lifeEvents: state.lifeEvents || [],
+      annotations: state.annotations || [],
+    }, null, 2);
+  }
+  // Net worth annotations (roadmap #69): mark major events on the chart.
+  function addAnnotation(state, label, date) {
+    label = String(label || '').trim();
+    if (!label) throw Error('Enter a label for the event.');
+    if (!validDate(date)) throw Error('Choose a valid date.');
+    const annotations = state.annotations || [];
+    annotations.push({ id: 'ann-' + Date.now(), label, date });
+    annotations.sort((a, b) => a.date.localeCompare(b.date));
+    return annotations;
+  }
+  // Report export (roadmap #70): generate CSV for a period.
   function reportCSV(state, month) {
     const r = spendingReport(state, month);
     const lines = ['Category,Amount'];
@@ -390,7 +422,39 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Report export (roadmap #70): generate CSV for a period.
+    // Full data export (roadmap #92): everything as JSON.
+  function fullExport(state) {
+    return JSON.stringify({
+      exported: new Date().toISOString(),
+      version: '1.38.0',
+      profile: state.profile,
+      accounts: state.accounts,
+      transactions: state.transactions,
+      bills: state.bills,
+      incomes: state.incomes,
+      budgets: state.budgets,
+      goals: state.goals,
+      holdings: state.holdings,
+      dividends: state.dividends || [],
+      contributions: state.contributions || [],
+      manualAssets: state.manualAssets || [],
+      debts: state.debts || [],
+      sinkingFunds: state.sinkingFunds || [],
+      lifeEvents: state.lifeEvents || [],
+      annotations: state.annotations || [],
+    }, null, 2);
+  }
+  // Net worth annotations (roadmap #69): mark major events on the chart.
+  function addAnnotation(state, label, date) {
+    label = String(label || '').trim();
+    if (!label) throw Error('Enter a label for the event.');
+    if (!validDate(date)) throw Error('Choose a valid date.');
+    const annotations = state.annotations || [];
+    annotations.push({ id: 'ann-' + Date.now(), label, date });
+    annotations.sort((a, b) => a.date.localeCompare(b.date));
+    return annotations;
+  }
+  // Report export (roadmap #70): generate CSV for a period.
   function reportCSV(state, month) {
     const r = spendingReport(state, month);
     const lines = ['Category,Amount'];
@@ -621,7 +685,39 @@
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
     });
-    // Report export (roadmap #70): generate CSV for a period.
+    // Full data export (roadmap #92): everything as JSON.
+  function fullExport(state) {
+    return JSON.stringify({
+      exported: new Date().toISOString(),
+      version: '1.38.0',
+      profile: state.profile,
+      accounts: state.accounts,
+      transactions: state.transactions,
+      bills: state.bills,
+      incomes: state.incomes,
+      budgets: state.budgets,
+      goals: state.goals,
+      holdings: state.holdings,
+      dividends: state.dividends || [],
+      contributions: state.contributions || [],
+      manualAssets: state.manualAssets || [],
+      debts: state.debts || [],
+      sinkingFunds: state.sinkingFunds || [],
+      lifeEvents: state.lifeEvents || [],
+      annotations: state.annotations || [],
+    }, null, 2);
+  }
+  // Net worth annotations (roadmap #69): mark major events on the chart.
+  function addAnnotation(state, label, date) {
+    label = String(label || '').trim();
+    if (!label) throw Error('Enter a label for the event.');
+    if (!validDate(date)) throw Error('Choose a valid date.');
+    const annotations = state.annotations || [];
+    annotations.push({ id: 'ann-' + Date.now(), label, date });
+    annotations.sort((a, b) => a.date.localeCompare(b.date));
+    return annotations;
+  }
+  // Report export (roadmap #70): generate CSV for a period.
   function reportCSV(state, month) {
     const r = spendingReport(state, month);
     const lines = ['Category,Amount'];
@@ -1435,6 +1531,38 @@
     const currentMonthly = goal.monthly || 0;
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
+  }
+  // Full data export (roadmap #92): everything as JSON.
+  function fullExport(state) {
+    return JSON.stringify({
+      exported: new Date().toISOString(),
+      version: '1.38.0',
+      profile: state.profile,
+      accounts: state.accounts,
+      transactions: state.transactions,
+      bills: state.bills,
+      incomes: state.incomes,
+      budgets: state.budgets,
+      goals: state.goals,
+      holdings: state.holdings,
+      dividends: state.dividends || [],
+      contributions: state.contributions || [],
+      manualAssets: state.manualAssets || [],
+      debts: state.debts || [],
+      sinkingFunds: state.sinkingFunds || [],
+      lifeEvents: state.lifeEvents || [],
+      annotations: state.annotations || [],
+    }, null, 2);
+  }
+  // Net worth annotations (roadmap #69): mark major events on the chart.
+  function addAnnotation(state, label, date) {
+    label = String(label || '').trim();
+    if (!label) throw Error('Enter a label for the event.');
+    if (!validDate(date)) throw Error('Choose a valid date.');
+    const annotations = state.annotations || [];
+    annotations.push({ id: 'ann-' + Date.now(), label, date });
+    annotations.sort((a, b) => a.date.localeCompare(b.date));
+    return annotations;
   }
   // Report export (roadmap #70): generate CSV for a period.
   function reportCSV(state, month) {
@@ -2486,7 +2614,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
