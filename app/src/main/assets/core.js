@@ -600,6 +600,36 @@
     const combined = dollars(rows.reduce((sum, r) => sum + cents(r.amount), 0));
     return { rows, combined, monthly: dollars(Math.round(cents(combined) / monthsAhead)), monthsAhead };
   }
+  // Top merchants (roadmap #63): expense transactions grouped by merchant,
+  // ranked by total spend, with a period filter.
+  function topMerchants(state, monthsBack = 12, limit = 10) {
+    monthsBack = Math.max(1, Math.min(60, Math.round(number(monthsBack, 1))));
+    limit = Math.max(1, Math.min(50, Math.round(number(limit, 1))));
+    const today = localDate();
+    const [y, m] = today.split('-').map(Number);
+    const cutoff = new Date(Date.UTC(y, m - monthsBack, 1)).toISOString().slice(0, 10);
+    const byMerchant = {};
+    (state.transactions || []).forEach(t => {
+      if (t.type !== 'expense' || t.date < cutoff || t.date > today) return;
+      const key = merchantKey(t.label);
+      if (!byMerchant[key]) byMerchant[key] = { label: t.label, total: 0, count: 0 };
+      byMerchant[key].total = dollars(cents(byMerchant[key].total) + cents(t.amount));
+      byMerchant[key].count++;
+    });
+    return Object.values(byMerchant).sort((a, b) => cents(b.total) - cents(a.total)).slice(0, limit);
+  }
+  // Savings rate (roadmap #68): percent of income saved per month with trend.
+  function savingsRate(state, monthsBack = 12) {
+    const rows = monthlyTotals(state, localDate(), monthsBack).map(r => {
+      const savedCents = cents(r.income) - cents(r.expense);
+      return { month: r.month, income: r.income, expense: r.expense, saved: dollars(savedCents),
+        rate: r.income > 0 ? Math.round(savedCents / cents(r.income) * 1000) / 10 : null };
+    });
+    const incomeCents = rows.reduce((s, r) => s + cents(r.income), 0);
+    const savedCents = rows.reduce((s, r) => s + cents(r.saved), 0);
+    return { rows, totalIncome: dollars(incomeCents), totalSaved: dollars(savedCents),
+      overall: incomeCents > 0 ? Math.round(savedCents / incomeCents * 1000) / 10 : null };
+  }
   // Tax set-aside tracker (roadmap #23): untaxed side income, the set-aside
   // target at the user's rate, what's reserved via tax reserves, and the
   // next quarterly estimated-tax deadline.
@@ -1114,8 +1144,8 @@
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
-  paycheckEstimate, incomeSmoothing, gigIncomeStats, budgetAlerts, payPeriod, periodSpent,
-  payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
+  budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;

@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.20.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.21.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.21.0: Top merchants and savings rate
+
+- **Top merchants** (roadmap #63): Reports → Top merchants ranks spending by merchant over the last 3, 6, or 12 months, with share bars and transaction counts. Merchant names are normalized (e.g., "CHIPOTLE #123" groups with "Chipotle").
+- **Savings rate** (roadmap #68): Reports → Savings rate shows percent of income saved per month over the last 12 months, with overall rate and trend direction.
 
 ## New in 1.20.0: Overtime, holiday pay, and gig income variability
 

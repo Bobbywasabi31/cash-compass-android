@@ -58,3 +58,5 @@ html,body{background:var(--paper)}body{padding:0;font-size:14px}.app{max-width:n
 .flow-empty p{margin:0;line-height:1.6}
 @media(max-width:1050px){.flow-scroll-hint{display:block}}
 @media(max-width:760px){.flow-tables{grid-template-columns:1fr;gap:14px}.flow-summary>strong{font-size:18px}}
+.bar{height:8px;background:var(--surface-2,#eef1f4);border-radius:4px;min-width:80px;overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent,#2f7cf6);border-radius:4px}

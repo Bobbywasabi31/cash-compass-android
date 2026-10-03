@@ -1,3 +1,8 @@
+# Cash Compass 1.21.0 preview
+
+- **Top merchants (roadmap #63):** Reports → Top merchants ranks spending by merchant over the last 3, 6, or 12 months, with share bars and transaction counts. Merchant names are normalized so variants group together.
+- **Savings rate (roadmap #68):** Reports → Savings rate shows percent of income saved per month over the last 12 months, with the overall rate and trend direction (rising/steady/falling).
+
 # Cash Compass 1.20.0 preview
 
 - **Overtime and holiday pay:** the paycheck estimator now accepts overtime hours (paid at 1.5×) and holiday hours (paid at 2×), showing a regular/overtime/holiday breakdown plus gross, estimated tax, and take-home. The take-home can be added as planned income.

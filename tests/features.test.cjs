@@ -588,3 +588,35 @@ test('gig income stats show range and consistency score',()=>{
  ['2026-01','2026-02'].forEach(m=>steady.transactions.push({id:'s'+m,label:'Job',amount:2000,date:m+'-15',type:'income',category:'Income',accountId:'cash'}));
  assert.equal(C.gigIncomeStats(steady,12).consistency,100);
 });
+
+test('top merchants rank by spend with period filter',()=>{
+ const s=C.blank();
+ const add=(label,amount,month)=>{s.transactions.push({id:'m'+label+month,label,amount,date:month+'-15',type:'expense',category:'Food',accountId:'cash'});};
+ add('Chipotle',50,'2026-09');add('CHIPOTLE #123',30,'2026-09');add('Shell',80,'2026-08');add('Old store',200,'2025-01');
+ const r=C.topMerchants(s,12,10);
+ assert.equal(r.length,2);
+ assert.equal(r[0].label,'Chipotle');
+ assert.equal(r[0].total,80);
+ assert.equal(r[0].count,2);
+ assert.equal(r[1].label,'Shell');
+ assert.equal(r[1].total,80);
+ assert.equal(C.topMerchants(s,2,10).length,1);
+ assert.equal(C.topMerchants(C.blank(),12,10).length,0);
+});
+
+test('savings rate computes per-month and overall percentages',()=>{
+ const s=C.blank();
+ const add=(type,amount,month)=>{s.transactions.push({id:'s'+type+month+amount,label:'X',amount,date:month+'-15',type,category:'X',accountId:'cash'});};
+ add('income',2000,'2026-08');add('expense',1500,'2026-08');
+ add('income',2000,'2026-09');add('expense',2200,'2026-09');
+ const r=C.savingsRate(s,12);
+ const aug=r.rows.find(x=>x.month==='2026-08'), sep=r.rows.find(x=>x.month==='2026-09');
+ assert.equal(aug.rate,25);
+ assert.equal(sep.rate,-10);
+ assert.equal(aug.saved,500);
+ assert.equal(sep.saved,-200);
+ assert.equal(r.totalIncome,4000);
+ assert.equal(r.totalSaved,300);
+ assert.equal(r.overall,7.5);
+ assert.equal(C.savingsRate(C.blank(),12).overall,null);
+});
