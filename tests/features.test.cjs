@@ -742,3 +742,32 @@ test('budgetMoves normalize with validation',()=>{
  assert.equal(n.budgetMoves[0].amount,50);
  assert.throws(()=>{const b=C.blank();b.budgetMoves.push({date:'bad',from:'A',to:'B',amount:10});C.normalize(b);});
 });
+
+test('debtPayoff compares snowball vs avalanche',()=>{
+ const r=C.debtPayoff([
+   {name:'Card A',balance:2000,rate:19.99,minPayment:75},
+   {name:'Card B',balance:5000,rate:24.99,minPayment:150}
+ ],500);
+ assert.ok(r.snowball.months>0);
+ assert.ok(r.avalanche.months>0);
+ assert.ok(r.avalanche.totalInterest<r.snowball.totalInterest);
+ assert.equal(r.totalDebt,7000);
+ assert.ok(r.snowball.payoffDate>r.avalanche.payoffDate||r.snowball.months>=r.avalanche.months);
+ assert.throws(()=>C.debtPayoff([],'500'));
+ assert.throws(()=>C.debtPayoff([{name:'A',balance:1000,rate:10,minPayment:200}],100));
+});
+
+test('sinkingFunds calculates monthly set-aside',()=>{
+ const s=C.blank();
+ const future=new Date(Date.now()+180*86400000).toISOString().slice(0,10);
+ s.sinkingFunds.push({id:'s1',label:'Insurance',target:1200,saved:200,dueDate:future});
+ const funds=C.sinkingFunds(s);
+ assert.equal(funds.length,1);
+ assert.ok(funds[0].monthlyNeeded>0);
+ assert.ok(funds[0].monthsLeft>0);
+ assert.equal(funds[0].remaining,1000);
+ assert.ok(funds[0].progress>0&&funds[0].progress<100);
+ const n=C.normalize(s);
+ assert.equal(n.sinkingFunds.length,1);
+ assert.equal(n.debts.length,0);
+});

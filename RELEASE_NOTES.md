@@ -1,3 +1,8 @@
+# Cash Compass 1.26.0 preview
+
+- **Debt payoff planner (roadmap #45):** Plan → Debt payoff planner compares snowball vs avalanche strategies with payoff time, payoff date, and total interest. Add debts with balance, APR, and minimum payment.
+- **Sinking funds (roadmap #48):** Plan → Sinking funds spreads annual/irregular expenses into monthly set-asides with target, due date, saved amount, monthly needed, and progress bars.
+
 # Cash Compass 1.25.0 preview
 
 - **Undo for bulk edits and deletes (roadmap #42):** bulk category changes and the new bulk delete offer a 60-second undo. An Undo button appears in Transactions after the operation.

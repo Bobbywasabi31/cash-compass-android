@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.25.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.26.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.26.0: Debt payoff planner and sinking funds
+
+- **Debt payoff planner** (roadmap #45): Plan → Debt payoff planner compares snowball (smallest balance first) vs avalanche (highest rate first) with payoff time, payoff date, and total interest. Add debts with balance, APR, and minimum payment.
+- **Sinking funds** (roadmap #48): Plan → Sinking funds spreads annual/irregular expenses into monthly set-asides. Set a target, due date, and saved amount; see monthly needed and progress.
 
 ## New in 1.25.0: Undo for bulk edits and budget moves
 

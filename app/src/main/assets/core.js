@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -74,6 +74,16 @@
       if (!x || typeof x !== 'object') throw Error('Invalid budget move.');
       if (!validDate(x.date)) throw Error('Invalid budget move date.');
       return { id: 'move-' + i, date: x.date, from: label(x.from), to: label(x.to), amount: number(x.amount, 0.01) };
+    });
+    // Sinking funds (roadmap #48): annual/irregular expenses spread monthly.
+    result.sinkingFunds = list(raw.sinkingFunds).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid sinking fund.');
+      if (x.dueDate && !validDate(x.dueDate)) throw Error('Invalid sinking fund date.');
+      return { id: 'sink-' + i, label: label(x.label), target: number(x.target, 0.01), saved: number(x.saved || 0), dueDate: x.dueDate || '' };
+    });
+    result.debts = list(raw.debts).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid debt.');
+      return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
@@ -650,6 +660,65 @@
       fell: { count: down.length, total: dollars(down.reduce((s, r) => s + cents(-r.change), 0)), top: down[0] || null },
       savings: cur && prev && cur.rate !== null && prev.rate !== null ? { cur: cur.rate, prev: prev.rate, saved: cur.saved, prevSaved: prev.saved } : null,
       bills: { count: bills.length, total: dollars(bills.reduce((s, b) => s + cents(b.amount), 0)) } };
+  }
+  // Debt payoff planner (roadmap #45): snowball vs avalanche comparison.
+  // Sinking funds (roadmap #48): monthly set-aside for annual/irregular
+  // expenses. Returns funds with monthly needed and progress.
+  function sinkingFunds(state, today = localDate()) {
+    return (state.sinkingFunds || []).map(f => {
+      let monthsLeft = null, monthlyNeeded = 0;
+      if (f.dueDate && f.dueDate > today) {
+        const [y1, m1] = today.slice(0, 7).split('-').map(Number);
+        const [y2, m2] = f.dueDate.slice(0, 7).split('-').map(Number);
+        monthsLeft = Math.max(1, (y2 - y1) * 12 + (m2 - m1) + 1);
+        const remaining = Math.max(0, cents(f.target) - cents(f.saved));
+        monthlyNeeded = dollars(Math.ceil(remaining / monthsLeft));
+      }
+      const progress = f.target > 0 ? Math.min(100, Math.round(cents(f.saved) / cents(f.target) * 100)) : 0;
+      return { ...f, monthsLeft, monthlyNeeded, progress, remaining: dollars(Math.max(0, cents(f.target) - cents(f.saved))) };
+    });
+  }
+  function debtPayoff(debts, monthlyPayment) {
+    monthlyPayment = number(monthlyPayment, 0.01);
+    debts = debts.map(d => ({ name: label(d.name), balance: number(d.balance, 0.01), rate: number(d.rate, 0, 100), minPayment: number(d.minPayment || 0, 0) }));
+    if (!debts.length) throw Error('Add at least one debt.');
+    const totalMin = dollars(debts.reduce((s, d) => s + cents(d.minPayment), 0));
+    if (cents(monthlyPayment) < cents(totalMin)) throw Error(`Monthly payment must cover minimums (${totalMin}).`);
+    const simulate = sortFn => {
+      const ds = debts.map(d => ({ ...d })).sort(sortFn);
+      let month = 0, totalInterest = 0;
+      const schedule = [];
+      while (ds.some(d => d.balance > 0) && month < 600) {
+        month++;
+        let payment = monthlyPayment;
+        // Pay minimums first
+        ds.forEach(d => {
+          if (d.balance <= 0) return;
+          const interest = dollars(Math.round(cents(d.balance) * d.rate / 100 / 12));
+          totalInterest = dollars(cents(totalInterest) + cents(interest));
+          d.balance = dollars(cents(d.balance) + cents(interest));
+          const min = Math.min(d.minPayment, d.balance);
+          d.balance = dollars(cents(d.balance) - cents(min));
+          payment = dollars(cents(payment) - cents(min));
+        });
+        // Extra to first debt (snowball/avalanche order)
+        for (const d of ds) {
+          if (payment <= 0 || d.balance <= 0) break;
+          const extra = Math.min(payment, d.balance);
+          d.balance = dollars(cents(d.balance) - cents(extra));
+          payment = dollars(cents(payment) - cents(extra));
+        }
+        schedule.push({ month, remaining: dollars(ds.reduce((s, d) => s + cents(d.balance), 0)) });
+      }
+      const [py, pm] = localDate().slice(0, 7).split('-').map(Number);
+      const payoffDate = new Date(Date.UTC(py, pm - 1 + month, 1)).toISOString().slice(0, 7);
+      return { months: month, totalInterest, payoffDate, schedule: schedule.filter((_, i) => i % 6 === 0 || i === schedule.length - 1) };
+    };
+    return {
+      snowball: simulate((a, b) => cents(a.balance) - cents(b.balance)),
+      avalanche: simulate((a, b) => b.rate - a.rate || cents(a.balance) - cents(b.balance)),
+      totalDebt: dollars(debts.reduce((s, d) => s + cents(d.balance), 0))
+    };
   }
   // Top merchants (roadmap #63): expense transactions grouped by merchant,
   // ranked by total spend, with a period filter.
@@ -1311,7 +1380,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
