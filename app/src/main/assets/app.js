@@ -1,11 +1,11 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.9.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.10.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const uid = () => 'item-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-let tab = 'home', dialog = null, hours = 12, slipDays = 0, reply = '', storageError = '', storageBlocked = false, toastTimer;
+let tab = 'home', dialog = null, hours = 12, slipDays = 0, runwayIncome = '', runwaySpending = '', reply = '', storageError = '', storageBlocked = false, toastTimer;
 let state = C.blank();
 try {
   const stored = localStorage.getItem(STORE) || localStorage.getItem('cash-compass-v1');
@@ -55,7 +55,23 @@ function legacyPlan() {
     ${paymentCalendar()}<section class="section"><h2 class="section-title">Cash timeline</h2><p class="small">Running amounts exclude your goal, tax, and buffer reserves. Expected income is not guaranteed.</p><div class="card">${m.timeline.length ? m.timeline.map(x => entryRow(x, x.kind, x.available)).join('') : '<p class="empty">Add income and bills to see the forecast.</p>'}</div></section>
     ${late.length ? `<section class="section"><h2 class="section-title">Late income · not counted</h2><div class="card">${late.map(x => entryRow(x, 'incomes')).join('')}</div></section>` : ''}
     ${later.length ? `<section class="section"><h2 class="section-title">Beyond 30 days</h2><div class="card">${later.map(x => entryRow(x, state.incomes.includes(x) ? 'incomes' : 'bills')).join('')}</div></section>` : ''}
-    <section class="section card scenario"><h2 class="section-title">What if pay changes?</h2><p>Applied to the next expected payment in this 30-day forecast. Your current cash and saved plan stay unchanged.</p><form id="scenarioForm" class="form-grid">${field('hours', 'Fewer hours on that paycheck', hours, 'number', 'min="0" max="1000" step="0.25"')}${field('slip', 'Payday slips by this many days', slipDays, 'number', 'min="0" max="365" step="1"')}<button class="secondary">Calculate</button></form><div class="scenario-result"><span>30-day unreserved ending cash</span><b>${money(s.endBalance)}</b></div><p>Original: ${money(m.endBalance)} · with changes: ${money(s.endBalance)}</p><p>${!m.next ? 'Add income to apply this scenario.' : m.next.date > m.end && !slipDays ? 'Next payday is beyond 30 days, so only the late-paycheck option applies.' : `Payday moves to ${dateText(s.slipDate)} (${s.days} days out). Estimated take-home reduction: ${money(s.loss)}, capped at the next payment amount.`}</p><p>Uses ${money(state.profile.hourlyRate)}/hour and your ${state.profile.taxRate}% scenario deduction. ${s.low < 0 ? `Lowest projected amount: ${money(s.low)}.` : ''}</p></section>`;
+    <section class="section card scenario"><h2 class="section-title">What if pay changes?</h2><p>Applied to the next expected payment in this 30-day forecast. Your current cash and saved plan stay unchanged.</p><form id="scenarioForm" class="form-grid">${field('hours', 'Fewer hours on that paycheck', hours, 'number', 'min="0" max="1000" step="0.25"')}${field('slip', 'Payday slips by this many days', slipDays, 'number', 'min="0" max="365" step="1"')}<button class="secondary">Calculate</button></form><div class="scenario-result"><span>30-day unreserved ending cash</span><b>${money(s.endBalance)}</b></div><p>Original: ${money(m.endBalance)} · with changes: ${money(s.endBalance)}</p><p>${!m.next ? 'Add income to apply this scenario.' : m.next.date > m.end && !slipDays ? 'Next payday is beyond 30 days, so only the late-paycheck option applies.' : `Payday moves to ${dateText(s.slipDate)} (${s.days} days out). Estimated take-home reduction: ${money(s.loss)}, capped at the next payment amount.`}</p><p>Uses ${money(state.profile.hourlyRate)}/hour and your ${state.profile.taxRate}% scenario deduction. ${s.low < 0 ? `Lowest projected amount: ${money(s.low)}.` : ''}</p></section>
+    ${forecastRangeSection()}${runwaySection()}`;
+}
+function forecastRangeSection() {
+  const fr = C.forecastRange(state);
+  if (!fr.range) return `<section class="section card"><h2 class="section-title">Forecast range</h2><p class="empty">Record at least 2 months of income to see best and worst cases.</p></section>`;
+  const r = fr.range, v = r.variability;
+  return `<section class="section card"><h2 class="section-title">Forecast range</h2><p class="small">If the next 30 days earn like your recorded months instead of the plan — ${v.months} months on record (worst ${money(v.min)}, average ${money(v.avg)}, best ${money(v.max)}).</p><div class="summary-grid"><div class="summary"><span>Worst case</span><b class="${r.worst < 0 ? 'danger' : ''}">${money(r.worst)}</b></div><div class="summary"><span>Expected (plan)</span><b>${money(r.expected)}</b></div><div class="summary"><span>Best case</span><b class="positive">${money(r.best)}</b></div></div><p class="small">30-day unreserved ending cash in each case.</p></section>`;
+}
+function runwaySection() {
+  const today = C.localDate();
+  const defIncome = C.avgMonthly(state, 'income', today, 3), defSpend = C.avgMonthly(state, 'expense', today, 3);
+  const inc = runwayIncome === '' ? defIncome : C.number(runwayIncome, 0);
+  const sp = runwaySpending === '' ? defSpend : C.number(runwaySpending, 0);
+  const r = C.runway(state, inc, sp);
+  const sliderMax = Math.max(5000, Math.ceil(Math.max(defIncome, inc) * 1.5 / 100) * 100);
+  return `<section class="section card"><h2 class="section-title">Low-season runway</h2><p class="small">How long your spendable cash lasts if income drops. Cash counted: ${money(r.cash)} (balance minus goal, tax, and buffer reserves).</p><form id="runwayForm" class="form-grid"><label>Monthly income if work slows: <b>${money(inc)}</b><input name="income" type="range" min="0" max="${sliderMax}" step="50" value="${inc}"></label>${field('spending', 'Monthly essential spending', sp, 'number', 'min="0" step="10"')}<button class="secondary">Calculate</button></form>${r.indefinite ? `<p><b>Covered indefinitely.</b> ${money(inc)}/mo income meets ${money(sp)}/mo spending.</p>` : `<p>Your cash lasts <b>${r.months < 1 ? Math.round(r.weeks) + ' weeks' : r.months.toFixed(1) + ' months'}</b> (${Math.round(r.weeks)} weeks) at a ${money(r.burn)}/mo shortfall.</p>`}</section>`;
 }
 function legacyGoals() {
   return header('Your goals', 'Reserve part of the cash you already entered. No automatic transfers.') +
@@ -201,6 +217,7 @@ document.addEventListener('submit', e => {
     } else if (e.target.id === 'profileForm') {
       update(next => { next.profile = { name: C.label(f.get('name')), balance: C.number(f.get('balance'), -1000000000), buffer: C.number(f.get('buffer')), taxHeld: C.number(f.get('taxHeld')), hourlyRate: C.number(f.get('hourlyRate')), taxRate: C.number(f.get('taxRate'), 0, 100) }; }); flash('Settings saved');
     } else if (e.target.id === 'scenarioForm') { hours = C.number(f.get('hours'), 0, 1000); slipDays = Math.round(C.number(f.get('slip'), 0, 365)); }
+    else if (e.target.id === 'runwayForm') { runwayIncome = f.get('income'); runwaySpending = f.get('spending'); }
     else if (e.target.id === 'coachForm') reply = answer(f.get('message').trim());
     else if (e.target.id === 'restoreForm') { const restored=C.normalize(JSON.parse(f.get('backup')));pauseWallet();persist(restored, true);pauseWallet(true); dialog = null; reply = ''; flash('Backup restored'); }
     render();

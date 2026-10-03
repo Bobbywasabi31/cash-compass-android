@@ -183,3 +183,50 @@ test('merchant cleanup strips processor noise and trailing ids',()=>{
  C.saveTransaction(s,{id:'a',label:'SQ *BLUE BOTTLE #123',type:'expense',amount:5,date:'2026-09-18',category:'Dining'});
  assert.equal(C.suggestMerchant(s,'Blue Bottle').category,'Dining');
 });
+
+test('forecast range derives worst/best from recorded income months',()=>{
+ const s=C.blank();let n=0;const id=()=>'t'+(++n);
+ const add=(date,amount)=>C.saveTransaction(s,{id:id(),label:'Job',type:'income',amount,date,category:'Paycheck',adjust:false});
+ add('2026-04-15',1000);add('2026-05-15',2000);add('2026-06-15',3000);
+ s.bills.push({id:'b',label:'Rent',amount:500,date:'2026-10-12'});
+ const fr=C.forecastRange(s,'2026-10-01');
+ assert.ok(fr.range);
+ assert.equal(fr.range.variability.min,1000);
+ assert.equal(fr.range.variability.max,3000);
+ assert.equal(fr.range.variability.avg,2000);
+ // Plan has no income events in the window: base ending cash is -500,
+ // worst swaps in the worst recorded month (+1000), best the best (+3000).
+ assert.equal(fr.range.worst,500);
+ assert.equal(fr.range.best,2500);
+ assert.equal(fr.range.expected,fr.endBalance);
+ // Fewer than 2 months of income history: no range.
+ const s2=C.blank();
+ C.saveTransaction(s2,{id:'x',label:'Job',type:'income',amount:1000,date:'2026-06-15',category:'Paycheck',adjust:false});
+ assert.equal(C.forecastRange(s2,'2026-10-01').range,null);
+});
+
+test('low-season runway converts cash and burn into months or indefinite',()=>{
+ const s=C.blank();s.profile.balance=3000;
+ let r=C.runway(s,1000,2000);
+ assert.equal(r.cash,3000);
+ assert.equal(r.burn,1000);
+ assert.equal(r.months,3);
+ assert.ok(Math.abs(r.weeks-13.035)<0.01);
+ assert.equal(r.indefinite,false);
+ r=C.runway(s,2500,2000);
+ assert.equal(r.indefinite,true);
+ assert.equal(r.months,null);
+ // Reserves reduce the countable cash.
+ s.goals.push({id:'g',label:'EF',target:10000,saved:1000,monthly:0,deadline:'',contributions:[]});
+ r=C.runway(s,1000,2000);
+ assert.equal(r.cash,2000);
+ assert.equal(r.months,2);
+ // Monthly averages feed the runway defaults.
+ const s3=C.blank();let n=0;const id=()=>'t'+(++n);
+ ['2026-07-05','2026-08-05','2026-09-05'].forEach(d=>{
+   C.saveTransaction(s3,{id:id(),label:'Job',type:'income',amount:3000,date:d,category:'Paycheck',adjust:false});
+   C.saveTransaction(s3,{id:id(),label:'Rent',type:'expense',amount:1200,date:d,category:'Housing',adjust:false});
+ });
+ assert.equal(C.avgMonthly(s3,'income','2026-10-01',3),3000);
+ assert.equal(C.avgMonthly(s3,'expense','2026-10-01',3),1200);
+});

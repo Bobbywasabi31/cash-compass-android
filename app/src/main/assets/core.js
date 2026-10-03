@@ -558,6 +558,66 @@
     if (!amounts.length) return null;
     return dollars(amounts.reduce((s, a) => s + a, 0) / amounts.length);
   }
+  // Monthly history helpers (roadmap #13, #66): recorded income/expense
+  // totals per full calendar month, most recent last.
+  function monthlyTotals(state, today = localDate(), monthsBack = 6) {
+    if (!validDate(today)) throw Error('Enter a valid calendar date.');
+    number(monthsBack, 1, 60);
+    const [y, m] = today.split('-').map(Number);
+    const out = [];
+    for (let i = monthsBack; i >= 1; i--) {
+      const d = new Date(Date.UTC(y, m - 1 - i, 1));
+      out.push({ month: d.toISOString().slice(0, 7), income: 0, expense: 0 });
+    }
+    const byMonth = Object.fromEntries(out.map(o => [o.month, o]));
+    (state.transactions || []).forEach(t => {
+      if (t.type === 'transfer') return;
+      const row = byMonth[t.date.slice(0, 7)];
+      if (!row) return;
+      if (t.type === 'income') row.income = dollars(cents(row.income) + cents(t.amount));
+      else row.expense = dollars(cents(row.expense) + cents(t.amount));
+    });
+    return out;
+  }
+  function avgMonthly(state, kind, today = localDate(), monthsBack = 3) {
+    const vals = monthlyTotals(state, today, monthsBack).map(r => r[kind]).filter(v => v > 0);
+    if (!vals.length) return 0;
+    return dollars(vals.reduce((s, v) => s + cents(v), 0) / vals.length);
+  }
+  // Income variability (roadmap #66): min/avg/max recorded monthly income.
+  // Null until at least 2 months of income history exist.
+  function incomeVariability(state, today = localDate(), monthsBack = 6) {
+    const incomes = monthlyTotals(state, today, monthsBack).map(r => r.income).filter(v => v > 0);
+    if (incomes.length < 2) return null;
+    const min = Math.min(...incomes), max = Math.max(...incomes);
+    return { min, max, avg: dollars(incomes.reduce((s, v) => s + cents(v), 0) / incomes.length), months: incomes.length };
+  }
+  // Forecast range (roadmap #66): what the 30-day ending cash looks like if
+  // the next 30 days earn like your worst/best recorded month instead of
+  // the plan. Null range until incomeVariability() has data.
+  function forecastRange(state, today = localDate()) {
+    const m = forecast(state, today);
+    const v = incomeVariability(state, today);
+    if (!v) return {...m, range: null};
+    const income30 = m.timeline.filter(e => e.kind === 'incomes').reduce((s, e) => s + cents(e.amount), 0);
+    const base = cents(m.endBalance);
+    return {...m, range: {
+      worst: dollars(base - income30 + cents(v.min)),
+      expected: m.endBalance,
+      best: dollars(base - income30 + cents(v.max)),
+      variability: v,
+    }};
+  }
+  // Low-season runway (roadmap #13): how long spendable cash lasts at a
+  // chosen monthly income vs spending. `months: null` means indefinite.
+  function runway(state, monthlyIncome, monthlySpending) {
+    monthlyIncome = number(monthlyIncome, 0); monthlySpending = number(monthlySpending, 0);
+    const cash = dollars(cents(state.profile.balance) - reservesCents(state));
+    const burn = dollars(cents(monthlySpending) - cents(monthlyIncome));
+    if (burn <= 0) return { cash, monthlyIncome, monthlySpending, burn: 0, months: null, weeks: null, indefinite: true };
+    const months = Math.max(0, cash) / burn;
+    return { cash, monthlyIncome, monthlySpending, burn, months, weeks: months * 4.345, indefinite: false };
+  }
   function cashFlow(state,start,end,accountId='all',groupBy='category') {
     if(!validDate(start)||!validDate(end)||end<start)throw Error('Choose a valid date range.');
     if(!['category','merchant'].includes(groupBy))throw Error('Choose a valid grouping.');
@@ -680,7 +740,8 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+    monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

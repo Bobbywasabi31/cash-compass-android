@@ -4,9 +4,14 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.9.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.10.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.10.0: Low-season runway and forecast range
+
+- **Low-season runway** (roadmap #13): the Plan tab now shows how many weeks/months your spendable cash lasts if income drops. Drag the "what if income drops to $X" slider, set monthly essential spending (defaults to your recent average), and see the runway instantly.
+- **Forecast range** (roadmap #66): best/expected/worst 30-day ending cash derived from your actual income variability — what if the next 30 days earn like your worst or best recorded month instead of the plan.
 
 ## New in 1.9.0: Variable bill estimates and merchant name cleanup
 

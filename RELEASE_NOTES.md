@@ -1,3 +1,8 @@
+# Cash Compass 1.10.0 preview
+
+- **Low-season runway (roadmap #13):** the Plan tab now answers "how long does my cash last if work slows down?" Drag the income slider to model a lower monthly income, adjust monthly essential spending (prefilled from your recent average), and see your runway in months and weeks — counting only spendable cash after goal, tax, and buffer reserves.
+- **Forecast range (roadmap #66):** best/expected/worst 30-day ending cash based on your real income variability. Compares the plan against what happens if the next 30 days earn like your worst or best recorded month.
+
 # Cash Compass 1.9.0 preview
 
 - **Variable bill estimates (roadmap #26):** bills such as utilities can now learn from your recorded history. Tick "Estimate from my recent history" on any bill and the 30-day forecast reserves the average of your last 3 payments for that merchant instead of the entered amount, marked with ~ everywhere it appears. Falls back to the entered amount when there is no history.
