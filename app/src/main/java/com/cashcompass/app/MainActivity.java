@@ -206,10 +206,23 @@ public class MainActivity extends Activity {
         if (requestCode == PICK_RECEIPT) {
             ValueCallback<android.net.Uri[]> cb = receiptCallback;
             receiptCallback = null;
-            if (cb != null) {
-                android.net.Uri[] uris = (resultCode == RESULT_OK && data != null && data.getData() != null)
-                        ? new android.net.Uri[]{ data.getData() } : null;
-                cb.onReceiveValue(uris);
+            android.net.Uri[] uris = (resultCode == RESULT_OK && data != null && data.getData() != null)
+                    ? new android.net.Uri[]{ data.getData() } : null;
+            if (cb != null) cb.onReceiveValue(uris);
+            // Receipt OCR: scan the picked image on-device and send text to the web form.
+            if (uris != null) {
+                final android.net.Uri imageUri = uris[0];
+                new Thread(() -> {
+                    try {
+                        com.google.mlkit.vision.common.InputImage image =
+                                com.google.mlkit.vision.common.InputImage.fromFilePath(MainActivity.this, imageUri);
+                        com.google.mlkit.vision.text.TextRecognition
+                                .getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT)
+                                .process(image)
+                                .addOnSuccessListener(visionText -> callback("cashCompassReceiptOCR", visionText.getText()))
+                                .addOnFailureListener(e -> { /* OCR unavailable; manual entry still works */ });
+                    } catch (Exception ignored) { /* unreadable image; manual entry still works */ }
+                }, "cash-compass-ocr").start();
             }
             return;
         }

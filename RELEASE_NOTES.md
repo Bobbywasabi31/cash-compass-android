@@ -1,3 +1,8 @@
+# 1.52.0
+
+- Receipt auto-scan: attaching a receipt photo now reads it on-device (ML Kit OCR) and fills in merchant, total, and date automatically. Nothing leaves your phone.
+- Receipt photos are auto-rotated upright (EXIF orientation fix) and downscaled so they stay small.
+
 # 1.51.0
 
 - Receipt photos now work on Android: the photo picker opens correctly (camera or gallery) when attaching a receipt to a transaction.

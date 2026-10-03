@@ -189,7 +189,7 @@ function modal() {
   let title = '', body = '';
   if (dialog.mode === 'edit' && kind === 'transactions') {
     title = x.id ? 'Edit transaction' : 'Record transaction';
-    body = `<form id="transactionForm" class="form-grid">${field('label','Merchant or description',x.label || '', 'text','maxlength="80"')}${selectField('type','Transaction type',x.type || 'expense',[['expense','Expense'],['income','Income'],['transfer','Transfer between accounts']])}${amountField('amount','Amount',x.amount || '',0.01)}${field('date','Transaction date',x.date || today,'date', 'max="'+today+'"')}${categoryField(x.category || 'Other')}${field('tags','Tags (comma-separated)',(x.tags||[]).join(', '),'text','maxlength="120"').replace(' required','')}${field('note','Note',(x.note||''),'text','maxlength="280"').replace(' required','')}${(x.type || 'expense') !== 'transfer' ? `<label>Refund for purchase (income only)<select name="refundOf"><option value="">Not a refund</option>${refundOptions(x.refundOf)}</select></label><p class="small">Link a refund to the original purchase and it nets against that category in budgets and reports.</p>` : ''}${(x.type || 'expense') === 'expense' ? `<label class="check-label"><input type="checkbox" name="reimbursable"${x.reimbursable ? ' checked' : ''}> Reimbursable — I expect to be paid back</label>` : ''}${(x.type || 'expense') === 'income' ? `<label class="check-label"><input type="checkbox" name="untaxed"${x.untaxed ? ' checked' : ''}> Untaxed income — freelance/gig, I'll set aside tax myself</label>` : ''}${accountSelect('accountId',x.accountId,'From / transaction account')}${accountSelect('toAccountId',x.toAccountId || (state.accounts[1]||state.accounts[0]).id,'To account (transfers only)')}${selectField('adjust','Cash balance',x.id && x.delta === 0 ? 'false' : 'true',[['true','Apply this transaction to cash'],['false','Already included in my cash balance']])}${amountField('taxDelta','Tax reserve from this income (0 for expenses)',x.taxDelta || 0)}${x.id && x.type !== 'transfer' ? `<button class="secondary" type="button" data-action="split-tx" data-id="${x.id}">Split across categories</button>` : ''}<p class="small">Editing reverses the old cash adjustment and applies the new one. Future payments belong in Plan.</p><p class="small">Known merchants fill in category and account as you type the name.</p><div id="categorySuggestion"></div><label>Receipt photo<input type="file" name="receipt" accept="image/*"></label>${x.receipt?`<div class="receipt-preview"><img src="${esc(x.receipt)}" alt="Receipt" style="max-width:120px;border-radius:8px"><button type="button" class="quiet" data-action="receipt-remove">Remove</button></div>`:''}<input type="hidden" name="receiptData" value="${esc(x.receipt||'')}"><button class="primary">Save transaction</button></form>`;
+    body = `<form id="transactionForm" class="form-grid">${field('label','Merchant or description',x.label || '', 'text','maxlength="80"')}${selectField('type','Transaction type',x.type || 'expense',[['expense','Expense'],['income','Income'],['transfer','Transfer between accounts']])}${amountField('amount','Amount',x.amount || '',0.01)}${field('date','Transaction date',x.date || today,'date', 'max="'+today+'"')}${categoryField(x.category || 'Other')}${field('tags','Tags (comma-separated)',(x.tags||[]).join(', '),'text','maxlength="120"').replace(' required','')}${field('note','Note',(x.note||''),'text','maxlength="280"').replace(' required','')}${(x.type || 'expense') !== 'transfer' ? `<label>Refund for purchase (income only)<select name="refundOf"><option value="">Not a refund</option>${refundOptions(x.refundOf)}</select></label><p class="small">Link a refund to the original purchase and it nets against that category in budgets and reports.</p>` : ''}${(x.type || 'expense') === 'expense' ? `<label class="check-label"><input type="checkbox" name="reimbursable"${x.reimbursable ? ' checked' : ''}> Reimbursable — I expect to be paid back</label>` : ''}${(x.type || 'expense') === 'income' ? `<label class="check-label"><input type="checkbox" name="untaxed"${x.untaxed ? ' checked' : ''}> Untaxed income — freelance/gig, I'll set aside tax myself</label>` : ''}${accountSelect('accountId',x.accountId,'From / transaction account')}${accountSelect('toAccountId',x.toAccountId || (state.accounts[1]||state.accounts[0]).id,'To account (transfers only)')}${selectField('adjust','Cash balance',x.id && x.delta === 0 ? 'false' : 'true',[['true','Apply this transaction to cash'],['false','Already included in my cash balance']])}${amountField('taxDelta','Tax reserve from this income (0 for expenses)',x.taxDelta || 0)}${x.id && x.type !== 'transfer' ? `<button class="secondary" type="button" data-action="split-tx" data-id="${x.id}">Split across categories</button>` : ''}<p class="small">Editing reverses the old cash adjustment and applies the new one. Future payments belong in Plan.</p><p class="small">Known merchants fill in category and account as you type the name.</p><div id="categorySuggestion"></div><label>Receipt photo — scans automatically<input type="file" name="receipt" accept="image/*"></label>${x.receipt?`<div class="receipt-preview"><img src="${esc(x.receipt)}" alt="Receipt" style="max-width:120px;border-radius:8px"><button type="button" class="quiet" data-action="receipt-remove">Remove</button></div>`:''}<input type="hidden" name="receiptData" value="${esc(x.receipt||'')}"><button class="primary">Save transaction</button></form>`;
   } else if (dialog.mode === 'edit' && kind === 'budgets') {
     title = x.id ? 'Edit budget category' : 'Add budget category';
     body = `<form id="budgetForm" class="form-grid">${categoryField(x.category || 'Groceries')}${selectField('bucket','Spending bucket',x.bucket || 'flexible',[['income','Income'],['fixed','Fixed bills'],['flexible','Flexible spending'],['occasional','Occasional expenses']])}${amountField('amount','Monthly budget',x.amount || '',0)}${field('start','Start month',x.start || budgetMonth,'month')}${selectField('rollover','Unused budget and overspending',x.rollover ? 'true':'false',[['false','Reset each month'],['true','Carry over to next month']])}<p class="small">Category names match transactions regardless of capitalization. Changes recalculate history from the start month.</p><button class="primary">Save budget</button></form>`;
@@ -208,28 +208,91 @@ function modal() {
   }
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><div class="modal-head"><h2 id="dialogTitle">${title}</h2><button class="close" data-action="close" aria-label="Close dialog">×</button></div>${body}<p id="formError" role="alert" class="danger small"></p></section></div>`;
 }
-// Receipt photo handling (roadmap #35): convert to data URL on select.
-document.addEventListener('change', e => {
+// Receipt photo handling (roadmap #35): normalize orientation via EXIF,
+// downscale, and store as a data URL on select.
+document.addEventListener('change', async e => {
   if (e.target.name === 'receipt' && e.target.files && e.target.files[0]) {
     const file = e.target.files[0];
-    if (file.size > 2000000) { flash('Photo must be under 2MB.'); e.target.value = ''; return; }
-    const reader = new FileReader();
-    reader.onload = ev => {
+    const setPreview = dataUrl => {
       const form = e.target.closest('form');
       const hidden = form.querySelector('[name=receiptData]');
-      if (hidden) hidden.value = ev.target.result;
-      // Show preview
+      if (hidden) hidden.value = dataUrl;
       let preview = form.querySelector('.receipt-preview');
       if (!preview) {
         preview = document.createElement('div');
         preview.className = 'receipt-preview';
         e.target.parentNode.appendChild(preview);
       }
-      preview.innerHTML = `<img src="${ev.target.result}" alt="Receipt" style="max-width:120px;border-radius:8px">`;
+      preview.innerHTML = `<img src="${dataUrl}" alt="Receipt" style="max-width:120px;border-radius:8px">`;
     };
-    reader.readAsDataURL(file);
+    try {
+      // imageOrientation:'from-image' applies the EXIF rotation so the
+      // photo displays upright instead of sideways/upside-down.
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const maxEdge = 1600;
+      const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (bitmap.close) bitmap.close();
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      if (dataUrl.length > 2800000) { flash('Photo is too large even after shrinking.'); e.target.value = ''; return; }
+      setPreview(dataUrl);
+    } catch (err) {
+      // Fallback: raw file read (orientation may be off on old WebViews)
+      const reader = new FileReader();
+      reader.onload = ev => setPreview(ev.target.result);
+      reader.readAsDataURL(file);
+    }
   }
 });
+// Receipt OCR auto-fill: native ML Kit sends recognized text here after a
+// receipt photo is picked. Parses merchant, total, and date into the form.
+function parseReceipt(text) {
+  const out = {};
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines.slice(0, 8)) {
+    if (/[A-Za-z]{3,}/.test(line) && !/receipt|invoice|customer copy|merchant copy/i.test(line)) {
+      out.merchant = line.replace(/\s{2,}/g, ' ').slice(0, 80);
+      break;
+    }
+  }
+  let m = text.match(/(?:grand\s+total|\btotal\b|amount\s+due|balance\s+due|total\s+due)[^\d$]{0,12}\$?\s*([\d,]+\.\d{2})/i);
+  if (m) out.total = m[1].replace(/,/g, '');
+  else {
+    const all = [...text.matchAll(/\$\s*([\d,]+\.\d{2})/g)].map(x => parseFloat(x[1].replace(/,/g, '')));
+    if (all.length) out.total = Math.max(...all).toFixed(2);
+  }
+  m = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    let [, mo, da, yr] = m;
+    if (yr.length === 2) yr = '20' + yr;
+    if (+mo >= 1 && +mo <= 12 && +da >= 1 && +da <= 31 && +yr >= 2000 && +yr <= 2100)
+      out.date = yr + '-' + mo.padStart(2, '0') + '-' + da.padStart(2, '0');
+  }
+  return out;
+}
+window.cashCompassReceiptOCR = function(text) {
+  if (!text) return;
+  const form = document.querySelector('#transactionForm');
+  if (!form) return;
+  const p = parseReceipt(text);
+  const filled = [];
+  const set = (name, value) => {
+    const input = form.querySelector('[name=' + name + ']');
+    if (input && value && !input.value) {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      filled.push(name === 'label' ? 'merchant' : name);
+    }
+  };
+  set('label', p.merchant);
+  set('amount', p.total);
+  set('date', p.date);
+  if (filled.length) flash('Receipt scanned — filled in ' + filled.join(', ') + '. Check before saving.');
+};
 function applyTheme(){
  const theme = localStorage.getItem('cc-theme') || 'system';
  document.documentElement.setAttribute('data-theme', theme);

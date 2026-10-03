@@ -10,8 +10,8 @@ android {
         applicationId = "com.cashcompass.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 55
-        versionName = "1.51.0"
+        versionCode = 56
+        versionName = "1.52.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -28,6 +28,8 @@ android {
 }
 
 dependencies {
+    // On-device receipt OCR (thin client; model via Play Services, keeps APK small)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
