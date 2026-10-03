@@ -1,3 +1,8 @@
+# Cash Compass 1.18.0 preview
+
+- **Pay-period budgets (roadmap #14):** Budget → Weekly / Bi-weekly tabs. Monthly budgets are split into 52/26 periods (weeks start Monday; bi-weekly anchored to Mon 2020-01-06). Unspent amounts roll forward into the current period for categories with rollover enabled.
+- **Budget alerts (roadmap #20):** a Budget alerts card warns at 80% of a category's available budget and flags overspending at 100%+, with linked refunds netted like the budget summary.
+
 # Cash Compass 1.17.0 preview
 
 - **Income smoothing (roadmap #15):** Plan → Income smoothing. Pick a steady target paycheck and see, from your recorded income months, how much to reserve in high months and draw in lean months — with a month-by-month table, totals, and running smoothing balance.

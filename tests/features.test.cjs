@@ -480,3 +480,51 @@ test('income smoothing reserves high months and draws lean months',()=>{
  assert.deepEqual(r.months.map(m=>m.month),['2026-04','2026-05','2026-06']);
  assert.throws(()=>C.incomeSmoothing(s,0));
 });
+
+test('budget alerts flag 80% and 100% spend',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:5000});
+ s.budgets.push(C.budget({id:'b1',category:'Groceries',bucket:'flexible',amount:400,start:'2026-01',rollover:false}));
+ s.budgets.push(C.budget({id:'b2',category:'Dining',bucket:'flexible',amount:100,start:'2026-01',rollover:false}));
+ C.saveTransaction(s,{id:'t1',label:'Store',type:'expense',amount:340,date:'2026-10-01',category:'Groceries',accountId:'checking',adjust:true});
+ C.saveTransaction(s,{id:'t2',label:'Cafe',type:'expense',amount:120,date:'2026-10-02',category:'Dining',accountId:'checking',adjust:true});
+ const a=C.budgetAlerts(s,'2026-10');
+ assert.equal(a.length,2);
+ const g=a.find(x=>x.category==='Groceries');
+ assert.equal(g.level,'warn');
+ assert.equal(Math.round(g.pct*100),85);
+ const d=a.find(x=>x.category==='Dining');
+ assert.equal(d.level,'over');
+ assert.equal(Math.round(d.pct*100),120);
+ assert.deepEqual(C.budgetAlerts(s,'2026-09'),[]);
+});
+
+test('pay-period budgets slice monthly and roll unspent forward',()=>{
+ const s=C.blank();
+ C.saveAccount(s,{id:'checking',label:'Checking',type:'checking',balance:5000});
+ s.budgets.push(C.budget({id:'b1',category:'Groceries',bucket:'flexible',amount:400,start:'2026-01',rollover:true}));
+ s.budgets.push(C.budget({id:'b2',category:'Dining',bucket:'flexible',amount:100,start:'2026-01',rollover:false}));
+ // A Monday: 2026-10-05. Spend in the prior week (Sep 28 - Oct 4).
+ C.saveTransaction(s,{id:'t1',label:'Store',type:'expense',amount:30,date:'2026-09-30',category:'Groceries',accountId:'checking',adjust:true});
+ C.saveTransaction(s,{id:'t2',label:'Store',type:'expense',amount:40,date:'2026-10-06',category:'Groceries',accountId:'checking',adjust:true});
+ const p=C.payPeriod('2026-10-07','weekly');
+ assert.equal(p.start,'2026-10-05');
+ assert.equal(p.end,'2026-10-11');
+ const r=C.payPeriodBudget(s,'weekly','2026-10-07');
+ assert.equal(r.period.start,'2026-10-05');
+ const g=r.rows.find(x=>x.category==='Groceries');
+ // 400/mo -> 400*12/52 = 92.31 per week
+ assert.equal(g.periodBudget,92.31);
+ assert.equal(g.spent,40);
+ // rollover allowed: 92.31 - 30 = 62.31 from prior week
+ assert.equal(g.rollover,62.31);
+ assert.equal(g.remaining,114.62);
+ const d=r.rows.find(x=>x.category==='Dining');
+ assert.equal(d.rollover,0);
+ assert.throws(()=>C.payPeriod('2026-10-07','monthly'));
+ assert.throws(()=>C.payPeriod('nope','weekly'));
+ // bi-weekly anchors to Mon 2020-01-06
+ const bw=C.payPeriod('2026-10-07','biweekly');
+ assert.equal(bw.start,'2026-10-05');
+ assert.equal(bw.end,'2026-10-18');
+});

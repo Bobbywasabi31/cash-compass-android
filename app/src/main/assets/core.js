@@ -497,6 +497,60 @@
     const totalDraw = dollars(months.reduce((s, m) => s + cents(m.draw), 0));
     return { targetMonthly, months, count: months.length, totalReserve, totalDraw, balance: dollars(balanceCents) };
   }
+  // Budget alerts (roadmap #20): categories at 80%+ (warn) or 100%+ (over)
+  // of their available budget, refunds netted like the budget summary.
+  function budgetAlerts(state, month = localDate().slice(0, 7)) {
+    return budgetSummary(state, month).rows
+      .filter(r => r.available > 0)
+      .map(r => ({ category: r.category, bucket: r.bucket, spent: r.spent, available: r.available, pct: r.spent / r.available, level: r.spent >= r.available ? 'over' : r.spent >= r.available * 0.8 ? 'warn' : null }))
+      .filter(a => a.level);
+  }
+  // Pay-period budgets (roadmap #14): weekly/bi-weekly cycles slice the
+  // monthly budget (52/26 periods per year); unspent amounts roll forward
+  // into the current period for categories that allow rollover. Weeks
+  // start Monday; bi-weekly periods anchor to Monday 2020-01-06.
+  const PAY_PERIODS = { weekly: 7, biweekly: 14 };
+  function payPeriod(date, cycle) {
+    if (!PAY_PERIODS[cycle]) throw Error('Choose a weekly or bi-weekly cycle.');
+    if (!validDate(date)) throw Error('Choose a valid date.');
+    const day = new Date(date + 'T12:00:00');
+    const monday = new Date(day);
+    monday.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+    if (cycle === 'biweekly') {
+      const utcDay = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+      const days = Math.round((utcDay(monday) - Date.UTC(2020, 0, 6)) / 86400000);
+      if (Math.floor(days / 7) % 2) monday.setDate(monday.getDate() - 7);
+    }
+    const start = monday.toISOString().slice(0, 10);
+    return { start, end: addDays(start, PAY_PERIODS[cycle] - 1) };
+  }
+  function periodSpent(state, cat, from, to) {
+    let s = 0;
+    (state.transactions || []).forEach(t => {
+      if (t.date < from || t.date > to) return;
+      if (t.type === 'expense' && t.category.toLowerCase() === cat) s += cents(t.amount);
+      else if (t.type === 'income' && t.refundOf) {
+        const o = (state.transactions || []).find(x => x.id === t.refundOf);
+        if (o && o.category.toLowerCase() === cat) s -= cents(t.amount);
+      }
+    });
+    return dollars(s);
+  }
+  function payPeriodBudget(state, cycle, date = localDate()) {
+    const period = payPeriod(date, cycle);
+    const prev = payPeriod(addDays(period.start, -1), cycle);
+    const perYear = cycle === 'weekly' ? 52 : 26;
+    const share = monthly => dollars(Math.round(cents(monthly) * 12 / perYear));
+    const rows = (state.budgets || []).filter(b => b.bucket !== 'income').map(b => {
+      const cat = b.category.toLowerCase();
+      const periodBudget = share(b.amount);
+      const spent = periodSpent(state, cat, period.start, period.end);
+      const rollover = b.rollover ? dollars(Math.max(0, cents(share(b.amount)) - cents(periodSpent(state, cat, prev.start, prev.end)))) : 0;
+      const available = dollars(cents(periodBudget) + cents(rollover));
+      return { category: b.category, bucket: b.bucket, periodBudget, rollover, spent, available, remaining: dollars(cents(available) - cents(spent)) };
+    });
+    return { cycle, period, prev, rows };
+  }
   // Tax set-aside tracker (roadmap #23): untaxed side income, the set-aside
   // target at the user's rate, what's reserved via tax reserves, and the
   // next quarterly estimated-tax deadline.
@@ -1011,7 +1065,8 @@
   const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
-  paycheckEstimate, incomeSmoothing, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
+  paycheckEstimate, incomeSmoothing, budgetAlerts, payPeriod, periodSpent,
+  payPeriodBudget, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
