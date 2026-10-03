@@ -183,23 +183,25 @@
   function reservesCents(state) {
     return cents(state.profile.buffer) + cents(state.profile.taxHeld) + state.goals.reduce((total, g) => total + cents(g.saved) + Math.min(cents(g.monthly), Math.max(0, cents(g.target) - cents(g.saved))), 0);
   }
-  function forecast(state, today = localDate(), fewerHours = 0) {
-    number(fewerHours, 0, 1000);
+  function forecast(state, today = localDate(), fewerHours = 0, slipDays = 0) {
+    number(fewerHours, 0, 1000); number(slipDays, 0, 365); slipDays = Math.round(slipDays);
     const end = addDays(today, 30);
     // Include each schedule's next income even when it falls beyond the 30-day timeline.
     const expandedIncomes = expand(state.incomes, end, today);
     const incomes = expandedIncomes.filter(x => x.date >= today).sort((a, b) => a.date.localeCompare(b.date));
     const next = incomes[0] || null;
-    const horizon = next && next.date > end ? next.date : end;
+    // Late-paycheck scenario (roadmap #18): model payday arriving slipDays late.
+    const slipDate = next ? addDays(next.date, slipDays) : null;
+    const horizon = next && slipDate > end ? slipDate : end;
     state = {...state, incomes: expandedIncomes, bills: expand(state.bills, horizon)};
-    const before = state.bills.filter(x => !next || x.date <= next.date);
+    const before = state.bills.filter(x => !next || x.date <= slipDate);
     const held = before.reduce((sum, x) => sum + cents(x.amount), 0);
     const reserved = reservesCents(state);
     const available = cents(state.profile.balance) - reserved - held;
     const lossEstimate = Math.round(fewerHours * cents(state.profile.hourlyRate) * (1 - state.profile.taxRate / 100));
     const loss = next ? Math.min(netCents(next, state.profile), lossEstimate) : 0;
     const events = state.bills.filter(x => x.date <= end).map(x => ({ ...x, kind: 'bills', effective: x.date < today ? today : x.date }))
-      .concat(incomes.filter(x => x.date <= end).map(x => ({ ...x, kind: 'incomes', effective: x.date })));
+      .concat(incomes.map(x => ({ ...x, kind: 'incomes', effective: next && x.id === next.id ? slipDate : x.date })).filter(x => x.effective <= end));
     // Bills precede income on the same date; deposit time is unknown.
     events.sort((a, b) => a.effective.localeCompare(b.effective) || (a.kind === b.kind ? 0 : a.kind === 'bills' ? -1 : 1));
     let running = cents(state.profile.balance) - reserved;
@@ -222,10 +224,10 @@
     });
     const crunchDays = [...crunchByDay.values()].sort((a, b) => a.date.localeCompare(b.date));
     return { next, before, held: dollars(held), reserved: dollars(reserved), safe: next ? dollars(Math.max(0, available)) : null,
-      shortfall: dollars(Math.max(0, -available)), days: next ? Math.max(1, daysBetween(today, next.date)) : null,
+      shortfall: dollars(Math.max(0, -available)), days: next ? Math.max(1, daysBetween(today, slipDate)) : null,
       overdue: state.bills.filter(x => x.date < today), lateIncome: state.incomes.filter(x => x.date < today),
       loss: dollars(loss), lossEstimate: dollars(lossEstimate), low: dollars(low), endBalance: dollars(endBalance), timeline, end,
-      buffer: dollars(bufferCents), crunchDays };
+      buffer: dollars(bufferCents), crunchDays, slipDays, slipDate };
   }
   const frequencies = ['none', 'weekly', 'biweekly', 'monthly', 'yearly'];
   function repeat(value) {
@@ -486,6 +488,48 @@
     if(last && last.date!==date && last.value===entry.value && last.investments===entry.investments)return;
     state.balanceHistory=history.filter(x=>x.date!==date).concat(entry).sort((a,b)=>a.date.localeCompare(b.date)).slice(-10000);
   }
+  // Subscription detector (roadmap #22): find charges that repeat on a
+  // weekly/biweekly/monthly/yearly rhythm in the last 12 months of recorded
+  // expenses, flag price increases, and suggest the next bill date.
+  function detectSubscriptions(state, today = localDate()) {
+    if (!validDate(today)) throw Error('Enter a valid calendar date.');
+    const since = addDays(today, -365);
+    const groups = new Map();
+    (state.transactions || []).filter(t => t.type === 'expense' && t.date >= since && t.date <= today).forEach(t => {
+      const key = merchantKey(t.label);
+      if (!key) return;
+      const g = groups.get(key) || { key, label: t.label, category: t.category, entries: [] };
+      g.entries.push({ date: t.date, amount: t.amount });
+      groups.set(key, g);
+    });
+    const planned = new Set((state.bills || []).map(b => merchantKey(b.label)));
+    const cycles = [[7, 'weekly'], [14, 'biweekly'], [30, 'monthly'], [365, 'yearly']];
+    const out = [];
+    groups.forEach(g => {
+      if (g.entries.length < 3) return;
+      const entries = [...g.entries].sort((a, b) => a.date.localeCompare(b.date));
+      const gaps = [];
+      for (let i = 1; i < entries.length; i++) gaps.push(daysBetween(entries[i - 1].date, entries[i].date));
+      const sorted = [...gaps].sort((a, b) => a - b), mid = sorted.length >> 1;
+      const med = sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+      const cycle = cycles.find(([days]) => Math.abs(med - days) <= Math.max(2, Math.round(days * 0.12)));
+      if (!cycle) return;
+      const tol = Math.max(2, Math.round(cycle[0] * 0.2));
+      if (gaps.filter(gp => Math.abs(gp - cycle[0]) <= tol).length < gaps.length * 0.6) return;
+      const amounts = entries.map(e => e.amount).sort((a, b) => a - b);
+      const typical = amounts[amounts.length >> 1];
+      const first = entries[0].amount, last = entries[entries.length - 1].amount;
+      out.push({
+        label: g.label, category: g.category, count: entries.length,
+        cycle: cycle[1], intervalDays: cycle[0], amount: typical,
+        lastDate: entries[entries.length - 1].date,
+        nextDate: addDays(entries[entries.length - 1].date, cycle[0]),
+        priceUp: last > first * 1.05,
+        alreadyPlanned: planned.has(g.key),
+      });
+    });
+    return out.sort((a, b) => b.amount - a.amount);
+  }
   function cashFlow(state,start,end,accountId='all',groupBy='category') {
     if(!validDate(start)||!validDate(end)||end<start)throw Error('Choose a valid date range.');
     if(!['category','merchant'].includes(groupBy))throw Error('Choose a valid grouping.');
@@ -608,7 +652,7 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

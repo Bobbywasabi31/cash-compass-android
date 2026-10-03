@@ -1,3 +1,8 @@
+# Cash Compass 1.8.0 preview
+
+- **Late-paycheck scenario (roadmap #18):** the Plan tab's "What if pay changes?" section now answers "what if payday slips N days?" — the forecast models the delayed paycheck, shows which bills land before it, how deep the cash trough gets, and your new per-day safe amount through the slipped payday.
+- **Subscription detector (roadmap #22):** Reports now scans your last 12 months of recorded expenses for charges repeating weekly, biweekly, monthly, or yearly, flags any whose price went up, and lets you add one as a bill with a single tap so the forecast reserves for it.
+
 # Cash Compass 1.7.0 preview
 
 - **Cash-crunch warnings (roadmap #11):** the 30-day forecast now flags dates where your projected cash drops below your everyday safety buffer, so you get warned before a shortfall instead of after. Shows on Today and in Plan whenever a buffer is set in You.

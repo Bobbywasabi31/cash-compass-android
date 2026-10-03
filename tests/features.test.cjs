@@ -102,3 +102,47 @@ test('merchant memory learns category and account, suggests on normalized names'
  const big={...s,merchantMemory:Object.fromEntries(Array.from({length:501},(_,i)=>['m'+i,{label:'M'+i,category:'Other',accountId:'cash',uses:1}]))};
  assert.throws(()=>C.normalize(big));
 });
+
+test('late-paycheck scenario shifts payday and deepens the crunch',()=>{
+ const s=C.blank();let n=0;const id=()=>'t'+(++n);
+ s.incomes.push({id:'i',label:'Job',amount:2000,date:'2026-10-10',repeat:'none'});
+ s.bills.push({id:'b',label:'Rent',amount:900,date:'2026-10-12'});
+ C.saveTransaction(s,{id:id(),label:'Cash',type:'expense',amount:50,date:'2026-10-01',category:'Other',adjust:false});
+ const base=C.forecast(s,'2026-10-01');
+ const slip=C.forecast(s,'2026-10-01',0,5);
+ // Payday moved 5 days later; the rent now falls before pay.
+ assert.equal(slip.slipDate,'2026-10-15');
+ assert.equal(slip.days,14);
+ assert.equal(slip.held,900);
+ assert.equal(base.held,0);
+ // Timing shifts: the trough deepens even though the 30-day total is unchanged.
+ assert.equal(slip.endBalance,base.endBalance);
+ assert.ok(slip.low<base.low,'slipping payday should deepen the low point');
+ // Zero slip is identical to the old behaviour.
+ const same=C.forecast(s,'2026-10-01',0,0);
+ assert.equal(same.endBalance,base.endBalance);
+ assert.equal(same.slipDate,'2026-10-10');
+});
+
+test('subscription detector finds monthly charges, flags price hikes, ignores noise',()=>{
+ const s=C.blank();let n=0;const id=()=>'t'+(++n);
+ const add=(date,amount,label='Example Streaming',category='Subscriptions')=>
+   C.saveTransaction(s,{id:id(),label,type:'expense',amount,date,category,adjust:false});
+ ['2026-04-05','2026-05-05','2026-06-05','2026-07-05','2026-08-05'].forEach(d=>add(d,14.99));
+ add('2026-09-05',19.99); // price increase on the latest charge
+ // Irregular noise: only two occurrences, uneven gaps.
+ add('2026-04-10',50,'Random Shop');add('2026-09-01',51,'Random Shop');
+ const subs=C.detectSubscriptions(s,'2026-09-18');
+ assert.equal(subs.length,1);
+ const sub=subs[0];
+ assert.equal(sub.cycle,'monthly');
+ assert.equal(sub.count,6);
+ assert.equal(sub.amount,14.99); // median, not the hiked price
+ assert.equal(sub.priceUp,true);
+ assert.equal(sub.nextDate,'2026-10-05');
+ assert.equal(sub.alreadyPlanned,false);
+ // A matching bill marks it as already planned.
+ s.bills.push({id:'sb',label:'Example Streaming',amount:19.99,date:'2026-10-05',repeat:'monthly'});
+ const subs2=C.detectSubscriptions(s,'2026-09-18');
+ assert.equal(subs2[0].alreadyPlanned,true);
+});
