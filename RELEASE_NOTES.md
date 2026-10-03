@@ -1,3 +1,9 @@
+# Cash Compass 1.35.0 preview
+
+- **Voice entry (roadmap #75):** Microphone button in Transactions; speak then confirm.
+- **Broader offline coach (roadmap #76):** answers savings rate, net worth, budget, debt, trends.
+- **Fix:** Quick entry UI (#74) now appears.
+
 # Cash Compass 1.34.0 preview
 
 - **Explain-this-number (roadmap #73):** Tap "Available before payday" on Home for calculation steps.

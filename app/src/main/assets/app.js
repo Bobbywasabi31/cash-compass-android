@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.34.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.35.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -161,10 +161,15 @@ function answer(q) {
   }
   if (/emergency|goal|set aside/.test(text)) return `Your goal, tax, and buffer reserves total ${money(m.reserved)}. Edit them in Goals or You. They must be part of the cash balance you entered; money held outside that balance should not be reserved again.`;
   if (/safe|spend|today|paycheck/.test(text)) return m.safe === null ? 'Enter your next payday before relying on a spending estimate. All entered unpaid bills remain visible in your plan.' : `Your entries leave an estimated ${money(m.safe)} through ${dateText(m.next.date)}, about ${money(Math.floor(m.safe * 100 / m.days) / 100)} per day. Bills: ${money(m.held)}; reserves: ${money(m.reserved)}. ${m.shortfall ? `You are short ${money(m.shortfall)} against those commitments. ` : ''}${m.low < 0 ? `The 30-day forecast also reaches a ${money(-m.low)} shortfall. ` : ''}Include all essentials and update cash as you spend.`;
-  return 'I can explain spending estimates, bills before pay, taxes, goals, or fewer work hours. Try “What if I work 8 fewer hours?”';
+  if (/savings rate|save/.test(text)) { const sr = C.savingsRate(state, 3); return sr.overall === null ? 'Not enough data for a savings rate yet. Add income and expenses.' : `Your 3-month savings rate is ${sr.overall}%. ${sr.overall >= 20 ? 'Strong saving.' : sr.overall >= 10 ? 'A solid start.' : 'Room to grow — review your biggest categories.'}`; }
+  if (/net worth|worth/.test(text)) { const w = C.netWorth(state); return `Your entered net worth is ${money(w.total)}: ${money(w.cash)} cash, ${money(w.investments)} investments, plus ${money(w.manualNet || 0)} in manual assets, minus debts.`; }
+  if (/budget/.test(text)) { const b = C.budget(state, C.localDate().slice(0, 7)); const spent = b.rows.reduce((s, r) => s + r.spent, 0), planned = b.rows.reduce((s, r) => s + r.available, 0); return planned ? `This month you've spent ${money(spent)} of ${money(planned)} budgeted (${Math.round(spent / planned * 100)}%). ${b.unbudgeted ? `${money(b.unbudgeted)} is unbudgeted. ` : ''}See Budget for details.` : 'No budget set for this month yet. Add categories in Budget.'; }
+  if (/debt|loan|owe/.test(text)) { const d = C.debtPayoff(state); return d.length ? `You have ${d.length} debt${d.length === 1 ? '' : 's'}. The snowball plan clears them in about ${d[d.length - 1].month}. See Recurring → Debt payoff for the schedule.` : 'No debts entered. Add them in Recurring to plan payoff.'; }
+  if (/trend|spending/.test(text)) { const tr = C.spendingTrends(state, 6); const rows = tr.rows.filter(r => r.total > 0); return rows.length < 2 ? 'Not enough months for a trend yet.' : `Spending ${rows[rows.length - 1].total >= rows[0].total ? 'rose' : 'fell'} from ${money(rows[0].total)} to ${money(rows[rows.length - 1].total)} over ${rows.length} months. See Reports → Trends.`; }
+  return 'I can explain spending estimates, bills, taxes, goals, work hours, savings rate, net worth, budget, debt, or trends. Try "What is my savings rate?"';
 }
 function coach() {
-  return header('Your cash-flow coach', 'Offline explanations calculated from your entries.') + `<section class="card chat"><p class="small">This preview uses a rules-based coach, not a connected AI model.</p><div class="bubble" aria-live="polite">${esc(reply || 'Ask about your spending window, bills, or a change in working hours.')}</div><div class="suggestions">${['What can I spend?', 'Which bills are due?', 'What if I work 12 fewer hours?', 'Tax set-aside'].map(q => `<button class="suggestion" data-prompt="${q}">${q}</button>`).join('')}</div><form id="coachForm" class="chat-form"><input name="message" aria-label="Ask about your cash flow" placeholder="Ask about your plan" maxlength="400" required><button class="send" aria-label="Send">↑</button></form><p class="disclaimer">Budgeting estimates from your entries, not investment or tax advice.</p></section>`;
+  return header('Your cash-flow coach', 'Offline explanations calculated from your entries.') + `<section class="card chat"><p class="small">This preview uses a rules-based coach, not a connected AI model.</p><div class="bubble" aria-live="polite">${esc(reply || 'Ask about your spending window, bills, or a change in working hours.')}</div><div class="suggestions">${['What can I spend?', 'What is my savings rate?', 'What is my net worth?', 'How is my budget?', 'What if I work 12 fewer hours?'].map(q => `<button class="suggestion" data-prompt="${q}">${q}</button>`).join('')}</div><form id="coachForm" class="chat-form"><input name="message" aria-label="Ask about your cash flow" placeholder="Ask about your plan" maxlength="400" required><button class="send" aria-label="Send">↑</button></form><p class="disclaimer">Budgeting estimates from your entries, not investment or tax advice.</p></section>`;
 }
 // Automatic backups (roadmap #6): rotating local slots with one-tap restore.
 function autoBackupSection() {
@@ -202,6 +207,20 @@ function modal() {
     body = `<p>${dialog.mode === 'remove' ? `${kind === 'holdings' ? 'Remove this holding from your portfolio and net worth?' : kind === 'lifeEvents' ? 'Remove this scenario event?' : kind === 'transactions' ? 'Delete '+esc(x.label)+'? This reverses its original cash and tax adjustments. Any settled schedule stays advanced.' : 'Remove '+esc(x.label || x.category)+'? This does not change cash. Repeating entries stop after removal.'}` : dialog.mode === 'demo' ? 'Replace this plan with sample data? An automatic backup of your current plan is saved first — restore it anytime from You → Automatic backups.' : dialog.mode === 'clear-memory' ? 'Forget all remembered merchants? Category and account suggestions start over; your transactions stay unchanged.' : dialog.mode === 'restore-auto' ? 'Restore this automatic backup? Your current plan is backed up first, so nothing is lost.' : 'Clear your plan and start with no entries? An automatic backup is saved first — restore it anytime from You → Automatic backups.'}</p><button class="primary" data-confirm="yes">${dialog.mode === 'remove' ? 'Remove entry' : dialog.mode === 'clear-memory' ? 'Clear merchant memory' : dialog.mode === 'restore-auto' ? 'Restore backup' : 'Replace plan'}</button>`;
   }
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><div class="modal-head"><h2 id="dialogTitle">${title}</h2><button class="close" data-action="close" aria-label="Close dialog">×</button></div>${body}<p id="formError" role="alert" class="danger small"></p></section></div>`;
+}
+function startVoice(){
+ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+ if(!SR){flash('Voice entry is not supported in this browser.');return;}
+ const rec = new SR(); rec.lang = 'en-US'; rec.interimResults = false;
+ flash('Listening... speak like "twelve fifty chipotle".');
+ rec.onresult = e => {
+   const text = e.results[0][0].transcript;
+   const input = document.getElementById('quickInput');
+   if(input) input.value = text;
+   flash(`Heard: "${text}". Review and tap Add to save.`);
+ };
+ rec.onerror = () => flash('Could not hear you. Try typing instead.');
+ rec.start();
 }
 function render() {
   app.innerHTML = ({ home, plan, goals, coach, profile, transactions, budgets, accounts, reports, cashflow, investments, forecasting, wallet })[tab]() + nav() + modal();

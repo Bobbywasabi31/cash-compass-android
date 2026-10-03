@@ -4,9 +4,15 @@ An offline cash-flow planner for hourly and irregular income.
 
 ## Download and install
 
-Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.34.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
+Open [Releases](https://github.com/Bobbywasabi31/cash-compass-android/releases) and download **Cash-Compass-1.35.0-preview.apk** from the newest successful preview. On your Android phone, tap the downloaded APK, allow your browser to install it when asked, and tap Install. Android 7.0 or newer is supported.
 
 This is a debug-signed testing preview. Copy a backup from **You → Backup / restore** before uninstalling or changing preview builds. Preview builds currently use different debug signing certificates, so installing a later preview can require uninstalling the old one. Production signing and Play Store publishing are not configured.
+
+## New in 1.35.0: Voice entry and broader coach
+
+- **Voice entry** (roadmap #75): Transactions → microphone button speaks a transaction ("twelve fifty chipotle"); confirm before saving via the quick entry form.
+- **Broader offline coach** (roadmap #76): Coach now answers savings rate, net worth, budget status, debt payoff, and spending trends.
+- **Fix:** Natural-language quick entry UI (#74) now actually appears in Transactions.
 
 ## New in 1.34.0: Explain-this-number and quick entry
 
