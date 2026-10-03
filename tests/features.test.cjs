@@ -854,3 +854,29 @@ test('dripProjection compounds with contributions',()=>{
  const noContrib=C.dripProjection(s,0,0,5,0);
  assert.equal(noContrib.projected,1000);
 });
+
+test('contributionStats totals contributions',()=>{
+ const s=C.blank();
+ s.contributions.push({id:'c1',label:'401k',amount:500,date:'2026-09-01'});
+ s.contributions.push({id:'c2',label:'401k',amount:500,date:'2026-10-01'});
+ const st=C.contributionStats(s);
+ assert.equal(st.total,1000);
+ assert.equal(st.contributions.length,2);
+ assert.equal(st.byMonth.length,2);
+});
+
+test('manualNetWorth includes assets and liabilities',()=>{
+ const s=C.blank();
+ s.manualAssets.push({id:'a1',label:'Car',value:15000,kind:'asset'});
+ s.manualAssets.push({id:'a2',label:'Mortgage',value:200000,kind:'liability'});
+ const m=C.manualNetWorth(s);
+ assert.equal(m.assetTotal,15000);
+ assert.equal(m.liabilityTotal,200000);
+ assert.equal(m.net,-185000);
+ // Net worth includes manual
+ s.profile.balance=50000;
+ assert.equal(C.netWorth(s),-135000);
+ const n=C.normalize(s);
+ assert.equal(n.manualAssets.length,2);
+ assert.equal(n.contributions.length,0);
+});

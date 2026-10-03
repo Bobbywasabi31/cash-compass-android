@@ -27,7 +27,7 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
@@ -85,7 +85,30 @@
       if (!x || typeof x !== 'object') throw Error('Invalid debt.');
       return { id: 'debt-' + i, label: label(x.label), balance: number(x.balance, 0.01), rate: number(x.rate || 0, 0, 100), minPayment: number(x.minPayment || 0, 0) };
     });
-    // Dividend tracker (roadmap #53): log, calendar, and projected income.
+    // Contribution log (roadmap #57): recurring investment contributions.
+  function contributionStats(state) {
+    const contribs = (state.contributions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    const total = dollars(contribs.reduce((s, c) => s + cents(c.amount), 0));
+    const byMonth = {};
+    contribs.forEach(c => {
+      const month = c.date.slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { month, total: 0, count: 0 };
+      byMonth[month].total = dollars(cents(byMonth[month].total) + cents(c.amount));
+      byMonth[month].count++;
+    });
+    return { contributions: contribs, total,
+      byMonth: Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12) };
+  }
+  // Manual assets and liabilities (roadmap #58): included in net worth.
+  function manualNetWorth(state) {
+    const assets = (state.manualAssets || []).filter(a => a.kind === 'asset');
+    const liabilities = (state.manualAssets || []).filter(a => a.kind === 'liability');
+    const assetTotal = dollars(assets.reduce((s, a) => s + cents(a.value), 0));
+    const liabilityTotal = dollars(liabilities.reduce((s, a) => s + cents(a.value), 0));
+    return { assets, liabilities, assetTotal, liabilityTotal,
+      net: dollars(cents(assetTotal) - cents(liabilityTotal)) };
+  }
+  // Dividend tracker (roadmap #53): log, calendar, and projected income.
   function dividendStats(state) {
     const divs = (state.dividends || []).slice().sort((a, b) => b.date.localeCompare(a.date));
     const total = dollars(divs.reduce((s, d) => s + cents(d.amount), 0));
@@ -165,11 +188,44 @@
       if (!x || typeof x !== 'object') throw Error('Invalid milestone.');
       return { id: 'mile-' + i, label: label(x.label), target: number(x.target, 0.01) };
     });
-    // Dividend tracker (roadmap #53).
+    // Contribution log (roadmap #57): recurring investment contributions.
+  function contributionStats(state) {
+    const contribs = (state.contributions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    const total = dollars(contribs.reduce((s, c) => s + cents(c.amount), 0));
+    const byMonth = {};
+    contribs.forEach(c => {
+      const month = c.date.slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { month, total: 0, count: 0 };
+      byMonth[month].total = dollars(cents(byMonth[month].total) + cents(c.amount));
+      byMonth[month].count++;
+    });
+    return { contributions: contribs, total,
+      byMonth: Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12) };
+  }
+  // Manual assets and liabilities (roadmap #58): included in net worth.
+  function manualNetWorth(state) {
+    const assets = (state.manualAssets || []).filter(a => a.kind === 'asset');
+    const liabilities = (state.manualAssets || []).filter(a => a.kind === 'liability');
+    const assetTotal = dollars(assets.reduce((s, a) => s + cents(a.value), 0));
+    const liabilityTotal = dollars(liabilities.reduce((s, a) => s + cents(a.value), 0));
+    return { assets, liabilities, assetTotal, liabilityTotal,
+      net: dollars(cents(assetTotal) - cents(liabilityTotal)) };
+  }
+  // Dividend tracker (roadmap #53).
     result.dividends = list(raw.dividends).map((x,i) => {
       if (!x || typeof x !== 'object') throw Error('Invalid dividend.');
       if (!validDate(x.date)) throw Error('Invalid dividend date.');
       return { id: 'div-' + i, symbol: label(x.symbol || '').toUpperCase(), amount: number(x.amount, 0.01), date: x.date };
+    });
+    // Contribution log (roadmap #57) and manual assets (roadmap #58).
+    result.contributions = list(raw.contributions).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid contribution.');
+      if (!validDate(x.date)) throw Error('Invalid contribution date.');
+      return { id: 'contrib-' + i, label: label(x.label || 'Contribution'), amount: number(x.amount, 0.01), date: x.date };
+    });
+    result.manualAssets = list(raw.manualAssets).map((x,i) => {
+      if (!x || typeof x !== 'object') throw Error('Invalid asset.');
+      return { id: 'asset-' + i, label: label(x.label), value: number(x.value, 0), kind: ['asset','liability'].includes(x.kind) ? x.kind : 'asset' };
     });
     if (new Set(result.budgets.map(x => x.category.toLowerCase())).size !== result.budgets.length) throw Error('Budget categories must be unique.');
     result.accounts=raw.accounts && raw.accounts.length ? list(raw.accounts).map(account) : [{id:'cash',label:'Cash',type:'cash',balance:result.profile.balance}];
@@ -767,6 +823,29 @@
     const neededMonthly = dollars(Math.ceil(remaining / Math.max(1, Math.round(paychecks / (payFrequency === 'weekly' ? 4 : payFrequency === 'biweekly' ? 2 : 1)))));
     return { perPaycheck, paychecks, neededMonthly, onTrack: cents(currentMonthly) >= cents(neededMonthly) };
   }
+  // Contribution log (roadmap #57): recurring investment contributions.
+  function contributionStats(state) {
+    const contribs = (state.contributions || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+    const total = dollars(contribs.reduce((s, c) => s + cents(c.amount), 0));
+    const byMonth = {};
+    contribs.forEach(c => {
+      const month = c.date.slice(0, 7);
+      if (!byMonth[month]) byMonth[month] = { month, total: 0, count: 0 };
+      byMonth[month].total = dollars(cents(byMonth[month].total) + cents(c.amount));
+      byMonth[month].count++;
+    });
+    return { contributions: contribs, total,
+      byMonth: Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12) };
+  }
+  // Manual assets and liabilities (roadmap #58): included in net worth.
+  function manualNetWorth(state) {
+    const assets = (state.manualAssets || []).filter(a => a.kind === 'asset');
+    const liabilities = (state.manualAssets || []).filter(a => a.kind === 'liability');
+    const assetTotal = dollars(assets.reduce((s, a) => s + cents(a.value), 0));
+    const liabilityTotal = dollars(liabilities.reduce((s, a) => s + cents(a.value), 0));
+    return { assets, liabilities, assetTotal, liabilityTotal,
+      net: dollars(cents(assetTotal) - cents(liabilityTotal)) };
+  }
   // Dividend tracker (roadmap #53): log, calendar, and projected income.
   function dividendStats(state) {
     const divs = (state.dividends || []).slice().sort((a, b) => b.date.localeCompare(a.date));
@@ -1261,7 +1340,7 @@
     const h=holding(input),next=[...(state.holdings||[])],i=next.findIndex(x=>x.id===h.id);if(i<0)next.push(h);else next[i]=h;
     portfolio({...state,holdings:next});state.holdings=next;
   }
-  function netWorth(state) {return number(dollars(cents(state.profile.balance)+cents(portfolio(state).value)),-MAX);}
+  function netWorth(state) {const manual=manualNetWorth(state);return number(dollars(cents(state.profile.balance)+cents(portfolio(state).value)+cents(manual.net)),-MAX);}
   function snapshot(state,date=localDate()) {
     if(!validDate(date))throw Error('Invalid snapshot date.');
     const entry={date,value:netWorth(state),investments:portfolio(state).value};
@@ -1592,7 +1671,7 @@
     state.budgetMoves.push({ id: 'move-' + Date.now(), date: localDate(), from: from.category, to: to.category, amount });
     return state;
   }
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

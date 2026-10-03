@@ -1,3 +1,8 @@
+# Cash Compass 1.30.0 preview
+
+- **Contribution log (roadmap #57):** Investments → Contributions tracks investment contributions with monthly breakdown.
+- **Manual assets and liabilities (roadmap #58):** Investments → Other assets & liabilities, included in net worth.
+
 # Cash Compass 1.29.0 preview
 
 - **Dividend tracker (roadmap #53):** Investments → Dividends logs payments with payment calendar and projected monthly income.
