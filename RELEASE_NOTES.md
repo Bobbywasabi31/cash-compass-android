@@ -1,3 +1,7 @@
+# Cash Compass 1.24.0 preview
+
+- **CSV + notification merge/reconcile (roadmap #4):** when importing CSV, rows are matched against the notification inbox by amount, then date within ±3 days, then fuzzy merchant. Matched rows merge (CSV wins on amount/name; your existing category preserved). Unmatched rows go to the inbox as "missed by notifications" for review. The preview shows match/miss counts.
+
 # Cash Compass 1.23.0 preview
 
 - **Proactive insights feed (roadmap #77):** the Home dashboard now shows insight cards derived from your data — spending spikes, budget pressure at 80%/100%, bills due this week, runway warnings, and savings-rate trends.

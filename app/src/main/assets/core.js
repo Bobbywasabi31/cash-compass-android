@@ -1229,7 +1229,67 @@
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
-  const api = { walletData, parseWallet, receiveWallet, resolveWallet, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  // CSV + notification merge/reconcile (roadmap #4): match CSV rows against
+  // wallet notification inbox by amount, then date within ±3 days, then
+  // fuzzy merchant. Returns [{row, match}] where match is the inbox item.
+  function reconcileCSV(state, csvRows) {
+    const inbox = (state.wallet && state.wallet.inbox) || [];
+    const used = new Set();
+    return csvRows.map(row => {
+      const t = row.transaction;
+      let best = null;
+      for (const item of inbox) {
+        if (used.has(item.id)) continue;
+        const parsed = parseWallet(item);
+        if (!parsed.amount || parsed.ignore) continue;
+        if (cents(parsed.amount) !== cents(t.amount)) continue;
+        if (Math.abs(daysBetween(parsed.date, t.date)) > 3) continue;
+        const pk = merchantKey(parsed.label || ''), tk = merchantKey(t.label || '');
+        if (pk && tk && (pk === tk || pk.includes(tk) || tk.includes(pk))) { best = item; break; }
+      }
+      if (best) used.add(best.id);
+      return { row, match: best };
+    });
+  }
+  function csvInboxId(t) {
+    const s = [t.date, t.label, t.amount, t.type, t.accountId].join('|');
+    let a = 0x811c9dc5, b = 0x01000193;
+    for (let i = 0; i < s.length; i++) { a = (a * 31 + s.charCodeAt(i)) >>> 0; b = (b * 37 + s.charCodeAt(i)) >>> 0; }
+    let out = '';
+    while (out.length < 64) {
+      a = (a * 1103515245 + 12345) >>> 0; b = (b * 1103515245 + 12345) >>> 0;
+      out += a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0');
+    }
+    return out.slice(0, 64);
+  }
+  // Apply reconciliation: matched rows merge (CSV wins on amount/name,
+  // user's existing category preserved); unmatched rows go to the inbox
+  // as "missed by notifications". Returns {matched, missed}.
+  function applyReconciliation(state, reconciled) {
+    let matched = 0, missed = 0;
+    const w = state.wallet;
+    reconciled.forEach(({ row, match }) => {
+      const t = row.transaction;
+      if (match) {
+        matched++;
+        const existing = state.transactions.find(x => x.walletId === match.id);
+        const category = existing ? existing.category : t.category;
+        w.inbox = w.inbox.filter(x => x.id !== match.id);
+        w.receipts.push({ id: match.id, revision: match.revision });
+        saveTransaction(state, { ...t, id: 'wallet-' + match.id.slice(0, 16), category, walletId: match.id, walletRevision: match.revision });
+      } else {
+        missed++;
+        const id = csvInboxId(t);
+        if (!w.inbox.some(x => x.id === id) && w.inbox.length < 200) {
+          w.inbox.push({ id, revision: id, postedAt: Date.now(), title: t.label,
+            text: `${t.type === 'income' ? '+' : '-'}$${t.amount} on ${t.date} · ${t.label}`,
+            reason: 'Missed by notifications — from CSV import.' });
+        }
+      }
+    });
+    return { matched, missed };
+  }
+  const api = { walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

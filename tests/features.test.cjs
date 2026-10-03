@@ -675,3 +675,45 @@ test('monthly review summarizes changes structurally',()=>{
  assert.equal(r.rose.top.category,'Food');
  assert.equal(r.bills.count,0);
 });
+
+
+
+test('CSV reconcile matches by amount, date window, and fuzzy merchant',()=>{
+ const s=C.blank();
+ // Notification from 3 days ago
+ const threeDaysAgo=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+ const notif=C.walletData({inbox:[{id:'a'.repeat(64),revision:'b'.repeat(64),postedAt:Date.now()-3*86400000,title:'Purchase',text:'You paid $50.00 at Chipotle with your Visa card',reason:''}]}).inbox[0];
+ s.wallet.inbox.push(notif);
+ const csv=`date,description,amount\n${threeDaysAgo},Chipotle #123,-50.00\n${threeDaysAgo},Shell,-30.00`;
+ const preview=C.previewCSV(s,csv,'cash',false);
+ const rec=C.reconcileCSV(s,preview);
+ assert.equal(rec.filter(x=>x.match).length,1);
+ assert.equal(rec.filter(x=>!x.match).length,1);
+ assert.equal(rec[0].match.id,notif.id);
+ // Wrong amount does not match
+ const preview2=C.previewCSV(s,`date,description,amount\n${threeDaysAgo},Chipotle,-99.00`,'cash',false);
+ assert.equal(C.reconcileCSV(s,preview2)[0].match,null);
+ // Date outside ±3 days does not match (10 days ago)
+ const tenDaysAgo=new Date(Date.now()-10*86400000).toISOString().slice(0,10);
+ const preview3=C.previewCSV(s,`date,description,amount\n${tenDaysAgo},Chipotle,-50.00`,'cash',false);
+ assert.equal(C.reconcileCSV(s,preview3)[0].match,null);
+});
+
+test('applyReconciliation merges matches and routes misses to inbox',()=>{
+ const s=C.blank();
+ const threeDaysAgo=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+ const notif=C.walletData({inbox:[{id:'c'.repeat(64),revision:'d'.repeat(64),postedAt:Date.now()-3*86400000,title:'Purchase',text:'You paid $50.00 at Chipotle',reason:''}]}).inbox[0];
+ s.wallet.inbox.push(notif);
+ const csv=`date,description,amount,category\n${threeDaysAgo},Chipotle #123,-50.00,Food\n${threeDaysAgo},Shell,-30.00,Transport`;
+ const preview=C.previewCSV(s,csv,'cash',false);
+ const rec=C.reconcileCSV(s,preview);
+ const res=C.applyReconciliation(s,rec);
+ assert.equal(res.matched,1);
+ assert.equal(res.missed,1);
+ assert.equal(s.transactions.length,1);
+ assert.equal(s.transactions[0].label,'Chipotle #123');
+ assert.equal(s.transactions[0].walletId,notif.id);
+ assert.equal(s.wallet.inbox.length,1);
+ assert.equal(s.wallet.inbox[0].reason,'Missed by notifications — from CSV import.');
+ assert.equal(s.wallet.inbox[0].title,'Shell');
+});
