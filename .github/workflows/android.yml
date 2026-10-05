@@ -58,15 +58,15 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -n com.cashcompass.app.preview/com.cashcompass.app.MainActivity
             sleep 2
-            adb shell screencap -p /sdcard/cash-compass.png
-            adb pull /sdcard/cash-compass.png app/build/cash-compass.png
+            adb shell screencap -p /sdcard/odddough.png
+            adb pull /sdcard/odddough.png app/build/odddough.png
       - name: Prepare verified APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Cash-Compass-1.55.0-preview.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/Cash-Compass-1.55.0-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/OddDough-1.56.0-preview.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/OddDough-1.56.0-preview.apk
           cd dist
-          sha256sum Cash-Compass-1.55.0-preview.apk > SHA256SUMS.txt
+          sha256sum OddDough-1.56.0-preview.apk > SHA256SUMS.txt
       - name: Save build and test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,14 +76,14 @@ jobs:
             dist/
             app/build/reports/
             app/build/outputs/androidTest-results/
-            app/build/cash-compass.png
+            app/build/odddough.png
           if-no-files-found: ignore
       - name: Publish downloadable preview
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v1.55.0-preview.${GITHUB_RUN_NUMBER}"
+          tag="v1.56.0-preview.${GITHUB_RUN_NUMBER}"
           # Only the latest version's notes — keeps the releases page short
           awk '/^# /{if(++c>1) exit} {print}' RELEASE_NOTES.md > dist/NOTES.md
-          gh release create "$tag" dist/Cash-Compass-1.55.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Cash Compass 1.55.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md
+          gh release create "$tag" dist/OddDough-1.56.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "OddDough 1.56.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md

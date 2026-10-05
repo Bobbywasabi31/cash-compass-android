@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Cash Compass"
+rootProject.name = "OddDough"
 include(":app")

@@ -1001,7 +1001,7 @@ test('shareSummary generates text summary',()=>{
  const s=C.blank();
  s.profile.balance=1000;
  const text=C.shareSummary(s);
- assert.ok(text.includes('Cash Compass summary'));
+ assert.ok(text.includes('OddDough summary'));
  assert.ok(text.includes('Safe to spend'));
  assert.ok(text.includes('Net worth'));
 });

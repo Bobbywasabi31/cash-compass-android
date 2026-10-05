@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:allowBackup="false"
-        android:label="Cash Compass"
+        android:label="OddDough"
         android:icon="@drawable/ic_compass"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true"
@@ -22,7 +22,7 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <service android:name=".WalletNotifications"
-            android:label="Cash Compass · Wallet purchases"
+            android:label="OddDough · Wallet purchases"
             android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>

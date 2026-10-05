@@ -72,7 +72,7 @@ public class BillReminder extends BroadcastReceiver {
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, CHANNEL) : new Notification.Builder(context);
         PendingIntent open = PendingIntent.getActivity(context, 17, new Intent(context, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         manager.notify(17, builder.setSmallIcon(com.cashcompass.app.R.drawable.ic_compass).setContentTitle("Review your upcoming bills")
-            .setContentText("You have bills due soon or overdue. Open Cash Compass to review.")
+            .setContentText("You have bills due soon or overdue. Open OddDough to review.")
             .setVisibility(Notification.VISIBILITY_PRIVATE).setContentIntent(open).setAutoCancel(true).build());
     }
 }

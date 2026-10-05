@@ -1,3 +1,7 @@
+# 1.56.0
+
+- New name: Cash Compass is now **OddDough** — same app, same data, fresh identity. Your plan, backups, and settings carry over untouched. The package name is unchanged, so this installs right over the previous preview.
+
 # 1.55.0
 
 - Captured purchases are now easy to find: when Wallet notifications need review, a banner at the top of Today reads "N transactions need review" and jumps straight to the review screen. It also appears on the Plan tab.

@@ -1,4 +1,4 @@
-# Cash Compass — Physical Device Test Checklist
+# OddDough — Physical Device Test Checklist
 
 Manual verification for real Android devices. Run through before any production release.
 

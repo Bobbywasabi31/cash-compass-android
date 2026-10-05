@@ -1,4 +1,4 @@
-# Cash Compass for Android
+# OddDough for Android
 
 An offline cash-flow planner for hourly and irregular income.
 
@@ -226,7 +226,7 @@ The Wallet page includes two clearly labeled fictional review notices and an exa
 
 ## Screenshots
 
-Cash Compass 1.6.1 with Jordan's complete fictional sample loaded. These are browser captures of the interface bundled in the Android app, showing phone and wider layouts. Select an image for full size, or open the [full nine-screenshot gallery](docs/screenshots/README.md) for accounts, budgets, investments, and forecasting too.
+OddDough 1.6.1 with Jordan's complete fictional sample loaded. These are browser captures of the interface bundled in the Android app, showing phone and wider layouts. Select an image for full size, or open the [full nine-screenshot gallery](docs/screenshots/README.md) for accounts, budgets, investments, and forecasting too.
 
 | Phone dashboard | Savings goals | Wallet purchase review |
 | --- | --- | --- |
@@ -246,7 +246,7 @@ Groups below 3% of their side's total are combined into **Other**. The diagram s
 
 ## New in 1.5: Google Wallet purchase import
 
-Open **You → Google Wallet purchase import**, choose the account and balance handling, and save. Then open Android notification access and enable **Cash Compass · Wallet purchases**. Access is off by default and must be granted by you. Android may show a restricted-settings prompt for sideloaded previews; see [Android's explanation](https://support.google.com/android/answer/12623953).
+Open **You → Google Wallet purchase import**, choose the account and balance handling, and save. Then open Android notification access and enable **OddDough · Wallet purchases**. Access is off by default and must be granted by you. Android may show a restricted-settings prompt for sideloaded previews; see [Android's explanation](https://support.google.com/android/answer/12623953).
 
 New Google Wallet notices are captured on-device while the app is closed and imported the next time it opens. Clear English USD purchases insert automatically; dollar signs mean USD. Review mode lets you approve every purchase instead. Choose review mode when using multiple cards. All automatic imports use the selected account and start in Other. Edit them normally afterward.
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_expense_short">Add expense</string>
-    <string name="shortcut_expense_long">Record an expense in Cash Compass</string>
+    <string name="shortcut_expense_long">Record an expense in OddDough</string>
     <string name="shortcut_income_short">Add income</string>
-    <string name="shortcut_income_long">Record income in Cash Compass</string>
+    <string name="shortcut_income_long">Record income in OddDough</string>
 </resources>

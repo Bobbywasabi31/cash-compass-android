@@ -30,7 +30,7 @@
     return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, weeklySummary: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not an OddDough backup.');
     const p = raw.profile || { name: raw.name, balance: raw.balance, hourlyRate: raw.rate, taxRate: raw.tax };
     const result = blank();
     result.demo = raw.demo === true; result.reminders=raw.reminders===true; result.weeklySummary=raw.weeklySummary===true;
@@ -304,7 +304,7 @@
     const sr = savingsRate(state, 3);
     const w = netWorth(state);
     const fmt = n => '$' + Number(n).toFixed(2);
-    return `Cash Compass summary\n` +
+    return `OddDough summary\n` +
       `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
       `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
       `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
@@ -811,7 +811,7 @@
     const sr = savingsRate(state, 3);
     const w = netWorth(state);
     const fmt = n => '$' + Number(n).toFixed(2);
-    return `Cash Compass summary\n` +
+    return `OddDough summary\n` +
       `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
       `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
       `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
@@ -1244,7 +1244,7 @@
     const sr = savingsRate(state, 3);
     const w = netWorth(state);
     const fmt = n => '$' + Number(n).toFixed(2);
-    return `Cash Compass summary\n` +
+    return `OddDough summary\n` +
       `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
       `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
       `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +
@@ -1716,7 +1716,7 @@
     const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
     let payload;
     try { payload = JSON.parse(encryptedJson); } catch(e) { throw Error('Not a valid encrypted backup file.'); }
-    if (payload.format !== 'cash-compass-encrypted') throw Error('Not a Cash Compass encrypted backup.');
+    if (payload.format !== 'cash-compass-encrypted') throw Error('Not an OddDough encrypted backup.');
     const salt = b64(payload.salt), iv = b64(payload.iv), ct = b64(payload.data);
     const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
     const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:100000, hash:'SHA-256'}, keyMat, {name:'AES-GCM', length:256}, false, ['decrypt']);
@@ -2325,7 +2325,7 @@
     const sr = savingsRate(state, 3);
     const w = netWorth(state);
     const fmt = n => '$' + Number(n).toFixed(2);
-    return `Cash Compass summary\n` +
+    return `OddDough summary\n` +
       `Safe to spend: ${m.safe === null ? '—' : fmt(m.safe)}\n` +
       `This month: ${fmt(r.income)} in, ${fmt(r.expense)} out\n` +
       `3-month savings rate: ${sr.overall === null ? '—' : sr.overall + '%'}\n` +

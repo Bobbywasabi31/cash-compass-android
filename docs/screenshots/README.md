@@ -1,6 +1,6 @@
 # Sample interface gallery
 
-Cash Compass **1.6.1**, running with Jordan's complete fictional sample plan. These PNGs are browser captures of the same bundled interface used by the Android WebView. They show responsive phone and wider window layouts.
+OddDough **1.6.1**, running with Jordan's complete fictional sample plan. These PNGs are browser captures of the same bundled interface used by the Android WebView. They show responsive phone and wider window layouts.
 
 The sample was loaded through **Load sample plan → Confirm** using **2026-10-02** as the capture date. Its dates move with the day you load it. All balances, merchants, holdings, history, and projections are examples. Navigation, report filters, and opening Wallet review did not change the sample's transactions or account balances.
 

@@ -1,6 +1,6 @@
 # Workspace design
 
-The supplied Monarch screenshots guide information hierarchy, not branding or personal data. Cash Compass retains its own identity.
+The supplied Monarch screenshots guide information hierarchy, not branding or personal data. OddDough retains its own identity.
 
 ## Shared presentation
 
