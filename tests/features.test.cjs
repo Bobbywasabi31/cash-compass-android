@@ -1186,3 +1186,30 @@ test('encrypted backup round-trip', async ()=>{
  // Garbage input rejected
  await assert.rejects(()=>C.decryptBackup('not json', 'correct-horse-123'));
 });
+test('weeklySummary counts last-7-day spending and income; transfers and old rows excluded',()=>{
+ const s=C.blank();s.profile.balance=1000;
+ s.transactions.push(
+  {id:'e1',type:'expense',amount:50,date:'2026-10-01'},
+  {id:'i1',type:'income',amount:900,date:'2026-10-03'},
+  {id:'t1',type:'transfer',amount:200,date:'2026-10-02'},
+  {id:'old',type:'expense',amount:999,date:'2026-09-20'},
+  {id:'future',type:'expense',amount:999,date:'2026-10-05'});
+ s.bills=[{id:'b1',label:'Rent',amount:800,date:'2026-10-08'},{id:'b2',label:'Far',amount:10,date:'2026-10-20'}];
+ s.incomes=[{id:'pay',label:'Pay',amount:900,date:'2026-10-09'}];
+ const w=C.weeklySummary(s,'2026-10-04');
+ assert.equal(w.start,'2026-09-28');assert.equal(w.end,'2026-10-04');
+ assert.equal(w.spent,50);assert.equal(w.income,900);
+ assert.equal(w.billsDue,1);assert.equal(w.billsTotal,800);
+ assert.equal(typeof w.safe,'number');
+});
+test('weeklySummary on empty state has zeros and null safe-to-spend',()=>{
+ const w=C.weeklySummary(C.blank(),'2026-10-04');
+ assert.equal(w.spent,0);assert.equal(w.income,0);
+ assert.equal(w.billsDue,0);assert.equal(w.billsTotal,0);
+ assert.equal(w.safe,null);
+});
+test('weeklySummary normalizes the new flag on import',()=>{
+ const s=C.normalize({...C.blank(),weeklySummary:true});
+ assert.equal(s.weeklySummary,true);
+ assert.equal(C.normalize(C.blank()).weeklySummary,false);
+});

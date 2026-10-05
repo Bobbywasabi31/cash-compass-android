@@ -1,3 +1,8 @@
+# 1.54.0
+
+- Weekly money recap (#24): opt-in Sunday notification with last week's spending vs income, safe-to-spend, and bills due in the next 7 days. Enable it under You → Reminders.
+- Launcher shortcuts (#86): long-press the app icon for one-tap "Add expense" and "Add income".
+
 # 1.53.0
 
 - Receipt scan is smarter about the store name: it now uses text size and position to tell the actual merchant apart from payment artifacts like "VERIFIED BY PIN" or "REG FUEL". If the name can't be read confidently, the field is left empty instead of guessed wrong.

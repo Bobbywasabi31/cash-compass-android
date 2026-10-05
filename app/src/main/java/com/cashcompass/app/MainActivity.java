@@ -22,6 +22,8 @@ public class MainActivity extends Activity {
     private static final String ORIGIN = "https://appassets.androidplatform.net/";
     private WebView app;
     private String pendingCSV;
+    private String pendingShortcut;
+    private boolean pageReady;
     private static final int OPEN_CSV = 41, SAVE_CSV = 42, NOTIFICATIONS = 43;
     private ValueCallback<android.net.Uri[]> receiptCallback;
     private static final int PICK_RECEIPT = 44;
@@ -77,6 +79,14 @@ public class MainActivity extends Activity {
             }
         });
         app.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                pageReady = true;
+                if (pendingShortcut != null) {
+                    String kind = pendingShortcut;
+                    pendingShortcut = null;
+                    openShortcut(kind);
+                }
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return !request.getUrl().toString().equals(ORIGIN + "index.html");
             }
@@ -100,10 +110,38 @@ public class MainActivity extends Activity {
         setContentView(root);
         root.requestApplyInsets();
         app.loadUrl(ORIGIN + "index.html");
+        handleShortcut(getIntent());
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
         }
+    }
+
+    @Override protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShortcut(intent);
+    }
+
+    /** Launcher shortcuts (roadmap #86). Queued until the page is ready. */
+    private void handleShortcut(android.content.Intent intent) {
+        if (intent == null || intent.getAction() == null) return;
+        String kind = null;
+        if ("com.cashcompass.app.ADD_EXPENSE".equals(intent.getAction())) kind = "expense";
+        else if ("com.cashcompass.app.ADD_INCOME".equals(intent.getAction())) kind = "income";
+        if (kind == null) return;
+        intent.setAction(null); // don't re-trigger on rotation
+        if (pageReady) openShortcut(kind);
+        else pendingShortcut = kind;
+    }
+
+    private void openShortcut(String kind) {
+        if (app == null) return;
+        final String quoted = org.json.JSONObject.quote(kind);
+        runOnUiThread(() -> {
+            if (!isFinishing() && !isDestroyed())
+                app.evaluateJavascript("window.cashCompassShortcut && window.cashCompassShortcut(" + quoted + ")", null);
+        });
     }
 
     private void handleBack() {
@@ -174,6 +212,18 @@ public class MainActivity extends Activity {
                     .putString("bills", out.toString()).remove("dates").apply();
                 BillReminder.schedule(MainActivity.this);
             } catch (Exception e) { callback("cashCompassNotice", "Could not update bill reminders."); }
+        }
+        @android.webkit.JavascriptInterface public void syncWeeklySummary(String json) {
+            try {
+                org.json.JSONObject input = new org.json.JSONObject(json);
+                String title = input.optString("title", "Weekly money recap");
+                String text = input.optString("text", "");
+                if (title.length() > 80) title = title.substring(0, 80);
+                if (text.length() > 500) text = text.substring(0, 500);
+                getSharedPreferences("weekly", MODE_PRIVATE).edit().putBoolean("enabled", input.optBoolean("enabled"))
+                    .putString("title", title).putString("text", text).apply();
+                WeeklySummary.schedule(MainActivity.this);
+            } catch (Exception e) { callback("cashCompassNotice", "Could not update weekly recap."); }
         }
         @android.webkit.JavascriptInterface public void openCSV() {
             runOnUiThread(() -> {

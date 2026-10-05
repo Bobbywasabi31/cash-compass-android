@@ -277,7 +277,7 @@ Holdings use entered prices and are separate from cash. History starts with save
 - Ask the offline, rules-based coach about the entered forecast.
 - Copy and restore a local JSON backup. Sample data is optional.
 
-The coach is not yet a connected AI model. Optional phone reminders run around 9 AM for bills due within three days or overdue; Android battery saving may delay them. Amounts are USD. No account or bank credentials are required. See [privacy](PRIVACY.md) and [release notes](RELEASE_NOTES.md).
+The coach is not yet a connected AI model. Optional phone reminders run around 9 AM for bills due within three days or overdue; an optional weekly recap posts on Sundays with last week's spending, safe-to-spend, and upcoming bills. Android battery saving may delay them. Amounts are USD. No account or bank credentials are required. See [privacy](PRIVACY.md) and [release notes](RELEASE_NOTES.md).
 
 ## Calculation rules
 

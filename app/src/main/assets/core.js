@@ -27,13 +27,13 @@
     return value.trim();
   }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, weeklySummary: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not a Cash Compass backup.');
     const p = raw.profile || { name: raw.name, balance: raw.balance, hourlyRate: raw.rate, taxRate: raw.tax };
     const result = blank();
-    result.demo = raw.demo === true; result.reminders=raw.reminders===true;
+    result.demo = raw.demo === true; result.reminders=raw.reminders===true; result.weeklySummary=raw.weeklySummary===true;
     result.profile = { name: label(p.name), balance: number(p.balance, -MAX), hourlyRate: number(p.hourlyRate), taxRate: number(p.taxRate, 0, 100), buffer: number(p.buffer || 0), taxHeld: number(p.taxHeld || 0), sideTaxRate: number(p.sideTaxRate == null ? 25 : p.sideTaxRate, 0, 100), taxReminder: p.taxReminder === true };
     ['incomes', 'bills', 'goals'].forEach(kind => {
       if (!Array.isArray(raw[kind]) || raw[kind].length > 10000) throw Error('Invalid ' + kind + ' list.');
@@ -2069,6 +2069,23 @@
       savings: cur && prev && cur.rate !== null && prev.rate !== null ? { cur: cur.rate, prev: prev.rate, saved: cur.saved, prevSaved: prev.saved } : null,
       bills: { count: bills.length, total: dollars(bills.reduce((s, b) => s + cents(b.amount), 0)) } };
   }
+  // Weekly summary notification (roadmap #24): spending vs income over the
+  // last 7 days, safe-to-spend from the forecast, and bills due in the next
+  // 7 days. Transfers are excluded from spending and income.
+  function weeklySummary(state, today = localDate()) {
+    const start = addDays(today, -6), horizon = addDays(today, 7);
+    let spent = 0, income = 0;
+    for (const t of state.transactions || []) {
+      if (t.date < start || t.date > today) continue;
+      if (t.type === 'expense') spent += cents(t.amount);
+      else if (t.type === 'income') income += cents(t.amount);
+    }
+    const upcoming = (state.bills || []).filter(b => b.date >= today && b.date <= horizon);
+    return { start, end: today,
+      spent: dollars(spent), income: dollars(income),
+      safe: forecast(state, today).safe,
+      billsDue: upcoming.length, billsTotal: dollars(upcoming.reduce((s, b) => s + cents(b.amount), 0)) };
+  }
   // Savings goal auto-allocation (roadmap #49): per-paycheck contribution
   // needed to hit the goal deadline.
   function goalPaycheckAmount(goal, payFrequency = 'monthly') {
@@ -3345,7 +3362,7 @@
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
-  spendingTrends, monthOverMonth, insights, monthlyReview,
+  spendingTrends, monthOverMonth, insights, monthlyReview, weeklySummary,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
