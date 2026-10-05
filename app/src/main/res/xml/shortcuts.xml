@@ -4,8 +4,8 @@
         android:shortcutId="add-expense"
         android:enabled="true"
         android:icon="@drawable/ic_compass"
-        android:shortcutShortLabel="Add expense"
-        android:shortcutLongLabel="Record an expense in Cash Compass">
+        android:shortcutShortLabel="@string/shortcut_expense_short"
+        android:shortcutLongLabel="@string/shortcut_expense_long">
         <intent
             android:action="com.cashcompass.app.ADD_EXPENSE"
             android:targetPackage="com.cashcompass.app"
@@ -15,8 +15,8 @@
         android:shortcutId="add-income"
         android:enabled="true"
         android:icon="@drawable/ic_compass"
-        android:shortcutShortLabel="Add income"
-        android:shortcutLongLabel="Record income in Cash Compass">
+        android:shortcutShortLabel="@string/shortcut_income_short"
+        android:shortcutLongLabel="@string/shortcut_income_long">
         <intent
             android:action="com.cashcompass.app.ADD_INCOME"
             android:targetPackage="com.cashcompass.app"
