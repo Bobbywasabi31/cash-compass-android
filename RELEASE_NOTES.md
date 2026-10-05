@@ -1,3 +1,7 @@
+# 1.55.0
+
+- Captured purchases are now easy to find: when Wallet notifications need review, a banner at the top of Today reads "N transactions need review" and jumps straight to the review screen. It also appears on the Plan tab.
+
 # 1.54.0
 
 - Weekly money recap (#24): opt-in Sunday notification with last week's spending vs income, safe-to-spend, and bills due in the next 7 days. Enable it under You → Reminders.

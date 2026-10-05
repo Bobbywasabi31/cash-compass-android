@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.47.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.55.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -77,7 +77,9 @@ function legacyHeader(title, subtitle) {
 function legacyNav() { return `<nav class="nav" aria-label="Main navigation">${[['home', '⌂', 'Today'], ['plan', '▦', 'Plan'], ['transactions', '≡', 'Activity'], ['budgets', '◎', 'Budget'], ['profile', '◌', 'You']].map(([key, icon, title]) => `<button data-tab="${key}" ${key === tab ? 'class="active" aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${title}</button>`).join('')}</nav>`; }
 function warnings(m) {
   const tax = taxDeadlineNotice();
-  return `${m.overdue.length ? `<div class="notice danger">${m.overdue.length} unpaid overdue bill(s) remain reserved. Mark paid only after payment.</div>` : ''}${m.lateIncome.length ? `<div class="notice">${m.lateIncome.length} expected payment(s) are late. They are excluded from the forecast until you update the date or mark received.</div>` : ''}${m.shortfall ? `<div class="notice danger">Your entered cash is ${money(m.shortfall)} short of bills and reserves${m.next ? ' before the next pay' : ''}.</div>` : ''}${m.crunchDays.length ? `<div class="notice">Cash drops below your ${money(m.buffer)} safety buffer on ${dateText(m.crunchDays[0].date)}${m.crunchDays.length > 1 ? ` · ${m.crunchDays.length} days in the next 30` : ''}. Review upcoming bills before spending.</div>` : ''}${tax}`;
+  const inbox = ((state.wallet || {}).inbox || []).length;
+  const review = inbox ? `<div class="notice"><button class="text-btn" data-tab="wallet">${inbox} transaction${inbox === 1 ? '' : 's'} need${inbox === 1 ? 's' : ''} review →</button></div>` : '';
+  return `${review}${m.overdue.length ? `<div class="notice danger">${m.overdue.length} unpaid overdue bill(s) remain reserved. Mark paid only after payment.</div>` : ''}${m.lateIncome.length ? `<div class="notice">${m.lateIncome.length} expected payment(s) are late. They are excluded from the forecast until you update the date or mark received.</div>` : ''}${m.shortfall ? `<div class="notice danger">Your entered cash is ${money(m.shortfall)} short of bills and reserves${m.next ? ' before the next pay' : ''}.</div>` : ''}${m.crunchDays.length ? `<div class="notice">Cash drops below your ${money(m.buffer)} safety buffer on ${dateText(m.crunchDays[0].date)}${m.crunchDays.length > 1 ? ` · ${m.crunchDays.length} days in the next 30` : ''}. Review upcoming bills before spending.</div>` : ''}${tax}`;
 }
 // Tax set-aside tracker (roadmap #23): optional quarterly deadline reminder.
 function taxDeadlineNotice() {
