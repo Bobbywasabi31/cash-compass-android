@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.56.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.59.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -80,6 +80,14 @@ function warnings(m) {
   const inbox = ((state.wallet || {}).inbox || []).length;
   const review = inbox ? `<div class="notice"><button class="text-btn" data-tab="wallet">${inbox} transaction${inbox === 1 ? '' : 's'} need${inbox === 1 ? 's' : ''} review →</button></div>` : '';
   return `${review}${m.overdue.length ? `<div class="notice danger">${m.overdue.length} unpaid overdue bill(s) remain reserved. Mark paid only after payment.</div>` : ''}${m.lateIncome.length ? `<div class="notice">${m.lateIncome.length} expected payment(s) are late. They are excluded from the forecast until you update the date or mark received.</div>` : ''}${m.shortfall ? `<div class="notice danger">Your entered cash is ${money(m.shortfall)} short of bills and reserves${m.next ? ' before the next pay' : ''}.</div>` : ''}${m.crunchDays.length ? `<div class="notice">Cash drops below your ${money(m.buffer)} safety buffer on ${dateText(m.crunchDays[0].date)}${m.crunchDays.length > 1 ? ` · ${m.crunchDays.length} days in the next 30` : ''}. Review upcoming bills before spending.</div>` : ''}${tax}`;
+}
+// Wallet-inbox review banner: shown at the top of the Dashboard (and already on
+// Activity). Tap behavior is identical everywhere — data-tab="wallet" jumps to
+// the review flow.
+function walletReviewBanner() {
+  const inbox = ((state.wallet || {}).inbox || []).length;
+  if (!inbox) return '';
+  return `<div class="notice"><button class="text-btn" data-tab="wallet">Google Wallet · ${inbox} to review →</button></div>`;
 }
 // Tax set-aside tracker (roadmap #23): optional quarterly deadline reminder.
 function taxDeadlineNotice() {
@@ -692,7 +700,7 @@ function home(){
  investments:panel(money(p.value)+' <small>investments</small>',p.rows.length?p.rows.slice(0,5).map(h=>`<div class="compact-row"><b>${esc(h.symbol)}</b><span>${esc(h.label)}</span><strong>${money(h.value)}</strong>${badge(money(h.gain),h.gain>=0)}</div>`).join(''):'<p class="empty">Add your holdings to track value, allocation, and gain versus cost.</p>',routeButton('investments')),
  advice:panel('Cash outlook',`<div class="stats-grid">${stat('Available before payday',f.safe===null?'Add payday':money(f.safe),'','safe')}${stat('30-day low after reserves',money(f.low),f.low<0?'danger':'')}</div><p class="small">Based on entered cash, unpaid bills, and reserves. Investment holdings are excluded from spendable cash.</p><div class="row-actions"><button data-action="add" data-kind="incomes">Add income</button><button data-action="add" data-kind="bills">Add bill</button>${routeButton('forecasting','Forecast')}${routeButton('coach','Explain my plan')}</div>`)
  };
- return header(`Good ${new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}, ${esc(state.profile.name)}.`, 'Your money at a glance.')+`<div class="page-actions"><button class="quiet" data-action="customize">▦ Customize dashboard</button><button class="primary" data-action="add" data-kind="transactions">+ Add transaction</button><button class="quiet" data-action="quick-add">⚡ Quick add</button></div><div class="dashboard-grid">${['setup','spending','budget','transactions','worth','recurring','goals','investments','advice'].filter(k=>!(state.hiddenCards||[]).includes(k)).map(k=>cards[k]).join('')}</div>${!state.transactions.length?'<button class="quiet" data-action="demo">Explore a sample plan</button>':''}`+insightsFeed();
+ return walletReviewBanner()+header(`Good ${new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}, ${esc(state.profile.name)}.`, 'Your money at a glance.')+`<div class="page-actions"><button class="quiet" data-action="customize">▦ Customize dashboard</button><button class="primary" data-action="add" data-kind="transactions">+ Add transaction</button><button class="quiet" data-action="quick-add">⚡ Quick add</button></div><div class="dashboard-grid">${['setup','spending','budget','transactions','worth','recurring','goals','investments','advice'].filter(k=>!(state.hiddenCards||[]).includes(k)).map(k=>cards[k]).join('')}</div>${!state.transactions.length?'<button class="quiet" data-action="demo">Explore a sample plan</button>':''}`+insightsFeed();
 }
 // Proactive insights feed (roadmap #77): dashboard cards from the user's data.
 function insightsFeed() {

@@ -24,7 +24,7 @@ function loadApp() {
     body: { classList: cls },
   };
   const src = fs.readFileSync(path.join(__dirname, '../app/src/main/assets/app.js'), 'utf8')
-    + '\n;globalThis.__t = { warnings, setState: s => { state = s; } };';
+    + '\n;globalThis.__t = { warnings, home, transactions, setState: s => { state = s; } };';
   eval(src);
   return globalThis.__t;
 }
@@ -72,4 +72,36 @@ test('banner renders before other warnings', () => {
   t.setState(s);
   const html = t.warnings(C.forecast(s));
   assert.ok(html.indexOf('needs review') < html.indexOf('overdue'), 'review banner comes first');
+});
+
+test('dashboard shows the wallet review banner at the very top when items are pending', () => {
+  const t = loadApp();
+  const C = globalThis.CashCore;
+  const s = C.blank();
+  s.wallet.inbox.push(item('a'), item('b'));
+  t.setState(s);
+  const html = t.home();
+  const at = html.indexOf('Google Wallet · 2 to review');
+  assert.ok(at >= 0, 'banner present on dashboard');
+  assert.ok(at < html.indexOf('page-heading'), 'banner renders before the greeting');
+  assert.match(html, /data-tab="wallet"/);
+});
+
+test('dashboard hides the banner when nothing needs review', () => {
+  const t = loadApp();
+  const C = globalThis.CashCore;
+  const s = C.blank();
+  t.setState(s);
+  assert.doesNotMatch(t.home(), /to review/);
+});
+
+test('activity page banner still renders with the count', () => {
+  const t = loadApp();
+  const C = globalThis.CashCore;
+  const s = C.blank();
+  s.wallet.inbox.push(item('a'));
+  t.setState(s);
+  const html = t.transactions();
+  assert.match(html, /Google Wallet · 1 to review/);
+  assert.match(html, /data-tab="wallet"/);
 });

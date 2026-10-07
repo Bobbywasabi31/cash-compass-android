@@ -1,3 +1,7 @@
+# 1.59.0
+
+- The "Google Wallet · N to review" banner now appears at the top of the Dashboard too, not just the Activity page. Tapping it jumps to the review screen, same as before.
+
 # 1.58.0
 
 - Home-screen widgets (#12, #85): long-press your home screen to add the **Safe-to-spend widget** (safe-to-spend and days until payday) and the **Upcoming-bills widget** (next 3 bills due, with an overdue count). They refresh every time you save in the app, plus a daily refresh so day counts stay correct. Tapping a widget opens OddDough. Note: widget contents are visible on your home screen without unlocking the app.
