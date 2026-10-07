@@ -512,7 +512,7 @@ public class MainActivity extends Activity {
                 req.setDescription("Downloading the latest OddDough release.");
                 req.setNotificationVisibility(
                     android.app.DownloadManager.Request.VISIBILITY_VISIBLE);
-                req.setDestinationInExternalFilesDir(this,
+                req.setDestinationInExternalFilesDir(MainActivity.this,
                     android.os.Environment.DIRECTORY_DOWNLOADS, "odddough-update.apk");
                 long id = dm.enqueue(req);
                 getSharedPreferences("updater", MODE_PRIVATE).edit().putLong("downloadId", id).apply();
