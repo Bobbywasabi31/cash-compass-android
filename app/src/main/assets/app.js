@@ -1,6 +1,6 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.59.0';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.60.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -40,6 +40,121 @@ function maybeDailyBackup() {
   lastAutoCheck = Date.now();
   const day = 24 * 3600 * 1000;
   if (!autoBackups().some(s => s.reason === 'daily' && Date.now() - new Date(s.when).getTime() < day)) autoBackup('daily');
+}
+// In-app updater: version comparison + release parsing. Pure functions —
+// covered by tests/updater.test.cjs. The network, file, and install steps run
+// natively (MainActivity.Bridge) because the WebView blocks outside URLs.
+function parseReleaseTag(tag) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-preview\.(\d+))?$/.exec(String(tag || '').trim());
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3], preview: m[4] == null ? null : +m[4] };
+}
+function isUpdateAvailable(appVersion, releaseTag) {
+  const a = parseReleaseTag(appVersion), b = parseReleaseTag(releaseTag);
+  if (!a || !b) return false;
+  for (const k of ['major', 'minor', 'patch']) if (b[k] !== a[k]) return b[k] > a[k];
+  return false; // same X.Y.Z: the app doesn't know its own preview build number
+}
+function findApkUrl(releaseJson) {
+  // releaseJson: parsed https://api.github.com/.../releases/latest payload.
+  try {
+    const assets = releaseJson && releaseJson.assets;
+    if (!Array.isArray(assets)) return null;
+    const hit = assets.find(x => x && typeof x.name === 'string' && x.name.endsWith('.apk')
+      && typeof x.browser_download_url === 'string' && x.browser_download_url.startsWith('https://'));
+    return hit ? hit.browser_download_url : null;
+  } catch (e) { return null; }
+}
+function makeUpdateMarker(tag, backupPath) {
+  return { tag, backupPath, when: new Date().toISOString(), appVersion: APP_VERSION };
+}
+function parseUpdateMarker(raw) {
+  try {
+    const m = JSON.parse(raw);
+    if (!m || typeof m.backupPath !== 'string' || !m.backupPath) return null;
+    return m;
+  } catch (e) { return null; }
+}
+function storedDataIntact() {
+  // Lightweight integrity check after an update: STORE must exist, parse, and
+  // look like a plan (profile object present).
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return { intact: false, transactions: 0 };
+    const s = JSON.parse(raw);
+    const tx = Array.isArray(s.transactions) ? s.transactions.length : 0;
+    return { intact: !!(s && typeof s === 'object' && s.profile), transactions: tx };
+  } catch (e) { return { intact: false, transactions: 0 }; }
+}
+let updateInfo = null, updateTimer = null;
+function updatePoll() {
+  let p; try { p = JSON.parse(NativeBridge.updateDownloadProgress()); } catch (e) { p = null; }
+  if (!p || p.status === 'none' || p.status === 'error') {
+    clearInterval(updateTimer);
+    if (dialog && dialog.mode === 'update') { dialog.updateState = 'error'; dialog.updateError = 'The download was interrupted.'; render(); }
+    return;
+  }
+  if (dialog && dialog.mode === 'update') {
+    dialog.updateProgress = { downloaded: p.downloaded || 0, total: p.total || 0 };
+    if (p.status === 'complete') { clearInterval(updateTimer); dialog.updateState = 'ready'; }
+    else if (p.status === 'failed') { clearInterval(updateTimer); dialog.updateState = 'error'; dialog.updateError = 'The download failed. Check your connection and try again.'; }
+    render();
+  } else clearInterval(updateTimer);
+}
+window.cashCompassUpdateCheck = raw => {
+  let info; try { info = JSON.parse(raw); } catch (e) { info = null; }
+  if (dialog && dialog.mode === 'update') {
+    if (!info || !info.ok) { dialog.updateState = 'error'; dialog.updateError = (info && info.error) || 'Could not check for updates.'; }
+    else if (!info.tag) { dialog.updateState = 'error'; dialog.updateError = 'No releases found.'; }
+    else {
+      updateInfo = { tag: info.tag, name: info.name || info.tag, notes: info.notes || '', apkUrl: info.apkUrl || null };
+      dialog.updateState = isUpdateAvailable(APP_VERSION, info.tag) ? 'available' : 'uptodate';
+    }
+    render();
+  }
+};
+function updateDialogBody() {
+  const s = dialog.updateState;
+  if (s === 'checking') return '<p>Checking GitHub for the latest OddDough release…</p>';
+  if (s === 'error') return `<p class="danger">${esc(dialog.updateError || 'Something went wrong.')}</p><div class="row-actions"><button class="secondary" data-action="update-check">Try again</button></div>`;
+  if (s === 'uptodate') return `<p>You’re on the latest version (OddDough ${esc(APP_VERSION)}).</p><p class="small">Checks GitHub releases on demand only — no background polling.</p>`;
+  if (s === 'available') {
+    const notes = (updateInfo.notes || '').slice(0, 600);
+    return `<p><b>${esc(updateInfo.name)}</b> is available — you have ${esc(APP_VERSION)}.</p>`
+      + (notes ? `<p class="small">${esc(notes)}</p>` : '')
+      + (updateInfo.apkUrl
+        ? '<p class="small">Your data is backed up automatically before the update, and verified after it installs.</p><div class="row-actions"><button class="primary" data-action="update-download">Download & install</button></div>'
+        : '<p class="danger">This release has no APK attached.</p>');
+  }
+  if (s === 'downloading') {
+    const p = dialog.updateProgress || { downloaded: 0, total: 0 };
+    const pct = p.total > 0 ? Math.round(100 * p.downloaded / p.total) : 0;
+    const mb = n => (n / 1048576).toFixed(1) + ' MB';
+    return `<p>Downloading ${esc(updateInfo.tag)}… ${pct}%${p.total > 0 ? ` (${mb(p.downloaded)} of ${mb(p.total)})` : ''}</p><p class="small">A backup of your data was saved before the download started. Keep the app open.</p>`;
+  }
+  if (s === 'ready') return '<p>Download complete.</p><p class="small">Your pre-update backup is saved. Tap Install to update — your data is verified when the new version opens.</p><div class="row-actions"><button class="primary" data-action="update-install">Install now</button></div>';
+  return '';
+}
+function updateRestoreBody() {
+  const m = dialog.marker || {};
+  return `<p class="danger">Your saved data didn’t survive the update${m.tag ? ` to ${esc(m.tag)}` : ''}.</p><p>A backup was saved automatically before the update${m.when ? ` (${new Date(m.when).toLocaleString()})` : ''}. Restore it now — one tap, nothing else is touched.</p><div class="row-actions"><button class="primary" data-action="update-restore">Restore my data</button><button class="quiet" data-action="update-restore-later">Not now</button></div>`;
+}
+// Post-update verify + restore. Runs on every launch; only acts when a
+// pre-update backup marker is pending.
+function checkPendingUpdate() {
+  if (!hasNative()) return;
+  let raw = null;
+  try { raw = NativeBridge.pendingUpdate(); } catch (e) { return; }
+  const marker = parseUpdateMarker(raw);
+  if (!marker) return;
+  const check = storedDataIntact();
+  if (check.intact) {
+    try { NativeBridge.clearPendingUpdate(); } catch (e) {}
+    flash('Updated to ' + marker.tag + ' — your data is intact (' + check.transactions + ' transactions).');
+  } else {
+    dialog = { mode: 'update-restore', marker };
+    render();
+  }
 }
 function persist(next, recovery = false) {
   if (storageBlocked && !recovery) throw Error(storageError);
@@ -189,7 +304,7 @@ function autoBackupSection() {
 function profile() {
   const p = state.profile;
   return header('Make it yours.', 'Update your cash whenever you spend or receive money.') + `<section class="card profile-card"><form id="profileForm" class="form-grid">${field('name', 'Your name', p.name, 'text', 'maxlength="80"')}${amountField('balance', 'Net account balance (edit accounts separately)', p.balance, -1000000000).replace('<input','<input readonly')}${amountField('buffer', 'Everyday safety buffer', p.buffer)}${amountField('taxHeld', 'Taxes already reserved within that cash', p.taxHeld)}${amountField('hourlyRate', 'Gross hourly rate for scenarios', p.hourlyRate)}${field('taxRate', 'Your chosen tax / scenario deduction (%)', p.taxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Enter take-home income after payroll deductions. For gross freelance income, this percentage reserves tax. For hourly scenarios, use your estimated deduction rate.</p>${field('sideTaxRate', 'Side-income tax set-aside rate (%)', p.sideTaxRate == null ? 25 : p.sideTaxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Untaxed freelance/gig income is tracked separately in Reports; this rate sets the quarterly set-aside target.</p><label class="check-label"><input type="checkbox" name="taxReminder"${p.taxReminder ? ' checked' : ''}> Remind me about quarterly estimated-tax deadlines</label><button class="primary">Save settings</button></form></section>
-    <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Appearance</h2><form id="themeForm" class="form-grid">${selectField('theme','Theme',localStorage.getItem('cc-theme')||'system',[['system','System'],['light','Light'],['dark','Dark'],['high-contrast','High contrast']])}<button class="primary">Save theme</button></form></section>${errorLogSection()}<section class="section card profile-card"><h2 class="section-title">Connected AI coach (optional)</h2><p class="small">Bring your own API key for a connected AI coach. Off by default. Only summarized totals are sent — never individual transactions. Your key is stored only on this device.</p><form id="aiCoachForm" class="form-grid">${field('aiKey','API key',localStorage.getItem('cc-ai-key')||'','password','maxlength="200"').replace(' required','')}${selectField('aiEnabled','Enable connected coach',localStorage.getItem('cc-ai-enabled')==='1'?'yes':'no',[['no','Off'],['yes','On']])}<button class="primary">Save</button></form></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p><p class="small">A Sunday recap at about 9 AM: last week's spending, safe-to-spend, and bills due in the next 7 days.</p><button class="secondary" data-action="weekly">${state.weeklySummary ? 'Turn off weekly recap' : 'Enable weekly recap'}</button></section>${appLockSection()}
+    <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Google Wallet purchase import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-action="update-check">Check for updates</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Appearance</h2><form id="themeForm" class="form-grid">${selectField('theme','Theme',localStorage.getItem('cc-theme')||'system',[['system','System'],['light','Light'],['dark','Dark'],['high-contrast','High contrast']])}<button class="primary">Save theme</button></form></section>${errorLogSection()}<section class="section card profile-card"><h2 class="section-title">Connected AI coach (optional)</h2><p class="small">Bring your own API key for a connected AI coach. Off by default. Only summarized totals are sent — never individual transactions. Your key is stored only on this device.</p><form id="aiCoachForm" class="form-grid">${field('aiKey','API key',localStorage.getItem('cc-ai-key')||'','password','maxlength="200"').replace(' required','')}${selectField('aiEnabled','Enable connected coach',localStorage.getItem('cc-ai-enabled')==='1'?'yes':'no',[['no','Off'],['yes','On']])}<button class="primary">Save</button></form></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p><p class="small">A Sunday recap at about 9 AM: last week's spending, safe-to-spend, and bills due in the next 7 days.</p><button class="secondary" data-action="weekly">${state.weeklySummary ? 'Turn off weekly recap' : 'Enable weekly recap'}</button></section>${appLockSection()}
     <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button class="quiet" data-action="export-all">Export all data</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">OddDough ${APP_VERSION} preview · USD</p></section>${autoBackupSection()}`;
 }
 function modal() {
@@ -221,6 +336,12 @@ function modal() {
 // Receipt photo handling (roadmap #35): normalize orientation via EXIF,
 // downscale, and store as a data URL on select.
 document.addEventListener('change', async e => {
+  if (e.target.id === 'pdfFileInput' && e.target.files && e.target.files[0]) {
+    const f = e.target.files[0];
+    e.target.value = '';
+    importPdfStatement(f);
+    return;
+  }
   if (e.target.name === 'receipt' && e.target.files && e.target.files[0]) {
     const file = e.target.files[0];
     const setPreview = dataUrl => {
@@ -257,6 +378,44 @@ document.addEventListener('change', async e => {
     }
   }
 });
+// PDF bank-statement import: text is extracted on-device with the vendored
+// pdf.js, parsed into rows, and fed through the same preview / duplicates /
+// transfer / reconcile pipeline as CSV imports. Nothing leaves the device.
+async function importPdfStatement(file){
+  if(typeof window.pdfjsLib==='undefined'){flash('PDF import needs the newest app update — install the latest preview first.');return;}
+  if(!/\.pdf$/i.test(file.name||'')&&!/pdf/i.test(file.type||'')){flash('Choose a PDF file.');return;}
+  if(file.size>10*1024*1024){flash('That PDF is over 10 MB — split the statement or use CSV import.');return;}
+  flash('Reading PDF statement…');
+  try{
+    const buf=await file.arrayBuffer();
+    // Worker runs the parse off the UI thread; the file is vendored locally.
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc='vendor/pdf.worker.min.js';
+    let pdf;
+    try{pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;}
+    catch(err){throw Error(err&&err.name==='PasswordException'?'This PDF is password-protected. Remove the password and try again.':'Could not read this PDF.');}
+    if(pdf.numPages>50)throw Error('This statement has '+pdf.numPages+' pages (limit 50) — split it or use CSV import.');
+    let lines=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const tc=await page.getTextContent();
+      lines=lines.concat(C.groupTextItems(tc.items));
+    }
+    if(pdf.destroy){try{await pdf.destroy();}catch(_){/* release worker memory */}}
+    if(lines.join(' ').length<50)throw Error('This PDF has no selectable text — it may be a scan. Export a text-based statement or use CSV import.');
+    const parsed=C.parseStatementLines(lines);
+    if(!parsed.length)throw Error('No transactions found in this statement layout yet — CSV import works with any layout.');
+    const form=document.getElementById('csvForm');
+    const fd=form?new FormData(form):null;
+    const accountId=fd&&fd.get('accountId')?fd.get('accountId'):(state.accounts[0]||{}).id;
+    const adjust=fd&&fd.get('adjust')?fd.get('adjust'):'false';
+    csvSource='pdf';
+    csvPreview=C.previewRows(state,parsed,accountId,adjust==='true');
+    csvReconcile=C.reconcileCSV(state,csvPreview);
+    dialog={mode:'csv',adjust};
+    render();
+    flash(parsed.length+' statement rows ready — review before importing.');
+  }catch(err){flash(err&&err.message?err.message:'Could not import this PDF.');}
+}
 // Receipt OCR auto-fill: native ML Kit sends recognized text here after a
 // receipt photo is picked. Parses merchant, total, and date into the form.
 function pickMerchant(text, blocks) {
@@ -433,10 +592,49 @@ document.addEventListener('click', e => {
     if (b.dataset.prompt) { reply = answer(b.dataset.prompt); render(); return; }
     if(b.dataset.contribute){dialog={mode:'contribute',item:state.goals.find(g=>g.id===b.dataset.contribute)};render();return;}
     if(b.dataset.action==='transfer'){dialog={mode:'edit',kind:'transactions',item:{type:'transfer'}};render();return;}
-    if(b.dataset.action==='csv'){csvPreview=null;dialog={mode:'csv'};render();return;}
+    if(b.dataset.action==='csv'){csvPreview=null;csvSource='csv';dialog={mode:'csv'};render();return;}
     if(b.dataset.action==='csv-open'){if(hasNative())NativeBridge.openCSV();else flash('Paste CSV text below in the browser.');return;}
+    if(b.dataset.action==='pdf-open'){const inp=document.getElementById('pdfFileInput');if(inp)inp.click();else flash('PDF import is not available here.');return;}
     if(b.dataset.action==='csv-export'){const text=C.exportCSV(state);if(hasNative())NativeBridge.saveCSV(text);else{csvDraft=text;dialog={mode:'csv'};render();}return;}
 if(b.dataset.action==='csv-import' && csvPreview){const keep=app.querySelector('[name=duplicates]').value==='keep';const rcBox=app.querySelector('[name=reconcile]');const doReconcile=rcBox&&rcBox.checked&&csvReconcile;const asTransfer=new Set([...app.querySelectorAll('input[name^="transfer-"]')].filter(c=>c.checked).map(c=>c.name.slice('transfer-'.length)));let count=0,matched=0,missed=0;update(next=>{const paired=new Set();(csvPreview.transferPairs||[]).forEach(p=>{if(!asTransfer.has(p.id))return;const a=csvPreview[p.expense],b=csvPreview[p.income];if(!keep&&(a.duplicate||b.duplicate))return;paired.add(p.expense);paired.add(p.income);C.saveTransaction(next,{id:uid(),label:a.transaction.label||'Transfer',type:'transfer',amount:p.amount,date:p.date,accountId:p.fromAccount,toAccountId:p.toAccount,adjust:dialog.adjust==='true'});count++;});if(doReconcile){const rec=csvReconcile.filter((x,i)=>!paired.has(i)&&(keep||!x.row.duplicate));const res=C.applyReconciliation(next,rec);matched=res.matched;missed=res.missed;count+=matched;}else{csvPreview.forEach((r,i)=>{if(paired.has(i))return;if(!(keep||!r.duplicate))return;C.saveTransaction(next,{...r.transaction,id:uid()});count++;});}});csvPreview=null;csvReconcile=null;dialog=null;tab='transactions';render();flash(count+' transactions imported'+(doReconcile?' ('+matched+' matched notifications, '+missed+' missed → inbox)':'')+'.');return;}
+    if(b.dataset.action==='update-check'){
+      if(!hasNative()){flash('Update checks are available in the Android app.');return;}
+      updateInfo=null;dialog={mode:'update',updateState:'checking'};render();
+      NativeBridge.checkForUpdate();return;
+    }
+    if(b.dataset.action==='update-download'){
+      if(!updateInfo||!updateInfo.apkUrl){flash('No update file found for this release.');return;}
+      // PRE-UPDATE BACKUP — Alex's hard requirement: never lose user data.
+      // The backup lands in app-specific external storage (survives updates).
+      let res;try{res=JSON.parse(NativeBridge.writeUpdateBackup(localStorage.getItem(STORE)||JSON.stringify(state),updateInfo.tag));}catch(e){res=null;}
+      if(!res||!res.ok){dialog.updateState='error';dialog.updateError=(res&&res.error)||'Backup failed.';render();return;}
+      let dl;try{dl=JSON.parse(NativeBridge.startUpdateDownload(updateInfo.apkUrl));}catch(e){dl=null;}
+      if(!dl||!dl.ok){dialog.updateState='error';dialog.updateError=(dl&&dl.error)||'Download failed.';render();return;}
+      dialog.updateState='downloading';dialog.updateProgress={downloaded:0,total:0};render();
+      flash('Backup saved. Downloading update…');
+      clearInterval(updateTimer);updateTimer=setInterval(updatePoll,1000);return;
+    }
+    if(b.dataset.action==='update-install'){
+      let c;try{c=JSON.parse(NativeBridge.canRequestInstalls());}catch(e){c=null;}
+      if(!c||!c.ok){NativeBridge.openInstallSettings();flash('Allow "Install unknown apps" for OddDough, then tap Install again.');return;}
+      let r;try{r=JSON.parse(NativeBridge.installUpdate());}catch(e){r=null;}
+      if(!r||!r.ok)flash((r&&r.error)||'Could not start the installer.');
+      return;
+    }
+    if(b.dataset.action==='update-restore'){
+      const marker=dialog.marker;let res;try{res=JSON.parse(NativeBridge.readBackupFile(marker.backupPath));}catch(e){res=null;}
+      if(!res||!res.ok){flash((res&&res.error)||'Could not read the backup file.');return;}
+      try{
+        autoBackup('before update-restore');
+        const restored=C.normalize(JSON.parse(res.json));
+        persist(restored,true);
+        NativeBridge.clearPendingUpdate();
+        dialog=null;render();
+        flash('Backup restored — your data is back.');
+      }catch(e){flash('That backup could not be restored: '+e.message);}
+      return;
+    }
+    if(b.dataset.action==='update-restore-later'){dialog=null;render();return;} // marker kept: prompts again next launch
     if(b.dataset.action==='reminders'){if(!hasNative()){flash('Available in the Android app.');return;}update(next=>{next.reminders=!next.reminders;});if(state.reminders)NativeBridge.requestNotifications();render();return;}
     if(b.dataset.action==='weekly'){if(!hasNative()){flash('Available in the Android app.');return;}update(next=>{next.weeklySummary=!next.weeklySummary;});if(state.weeklySummary)NativeBridge.requestNotifications();render();return;}
     if(b.dataset.action==='applock'){
@@ -482,7 +680,7 @@ document.addEventListener('submit', e => {
     if(e.target.id==='accountForm'){update(next=>C.saveAccount(next,{id:dialog.item?dialog.item.id:uid(),label:f.get('label'),type:f.get('type'),balance:f.get('balance')}));dialog=null;tab='accounts';flash('Account saved');
     }else if(e.target.id==='reportForm'){reportMonth=f.get('month');reportAccount=f.get('accountId');C.spendingReport(state,reportMonth,reportAccount);
     }else if(e.target.id==='contributionForm'){update(next=>C.contribute(next,dialog.item.id,{id:uid(),date:f.get('date'),amount:f.get('amount'),note:f.get('note')}));dialog=null;tab='goals';flash('Savings updated');
-    }else if(e.target.id==='csvForm'){csvDraft=String(f.get('csv'));dialog.adjust=f.get('adjust');csvPreview=C.previewCSV(state,csvDraft,f.get('accountId'),f.get('adjust')==='true');csvReconcile=C.reconcileCSV(state,csvPreview);
+    }else if(e.target.id==='csvForm'){csvDraft=String(f.get('csv'));dialog.adjust=f.get('adjust');csvSource='csv';csvPreview=C.previewCSV(state,csvDraft,f.get('accountId'),f.get('adjust')==='true');csvReconcile=C.reconcileCSV(state,csvPreview);
     }else if (e.target.id === 'planMonth') { if(!C.validDate(f.get('month')+'-01')) throw Error('Choose a valid month.'); planMonth=f.get('month'); planDay=planMonth+'-01';
     } else if (e.target.id === 'transactionSearch') {
       if(f.get('start')&&f.get('end')&&f.get('start')>f.get('end'))throw Error('Start date must be before end date.');
@@ -580,7 +778,7 @@ function paymentCalendar() {
   return `<section class="section card profile-card"><h2 class="section-title">Payment calendar</h2><form id="planMonth" class="form-grid">${field('month','Calendar month',planMonth,'month')}<button class="secondary">View calendar</button></form><div class="calendar" aria-label="Payment dates">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<span class="weekday">${d}</span>`).join('')}${'<span></span>'.repeat(offset)}${Array.from({length:days},(_,i)=>{const date=planMonth+'-'+String(i+1).padStart(2,'0'),items=events.filter(x=>x.date===date);return `<button data-day="${date}" class="calendar-day ${date===planDay ? 'selected':''}" aria-pressed="${date===planDay}" aria-label="${dateText(date)}, ${items.length} payments"><b>${i+1}</b><small>${items.length ? items.length+' due':'·'}</small></button>`;}).join('')}</div><h3>${dateText(planDay)}</h3>${selected.length ? selected.map(x=>entryRow(x,x.kind)).join('') : '<p class="small">No payments scheduled for this day.</p>'}<p class="small">Upcoming occurrences are estimates. Mark the earliest entry paid or received to advance a repeating schedule.</p></section>`;
 }
 
-let reportMonth=C.localDate().slice(0,7), reportAccount='all', csvPreview=null, csvDraft='', csvReconcile=null;
+let reportMonth=C.localDate().slice(0,7), reportAccount='all', csvPreview=null, csvDraft='', csvReconcile=null, csvSource='csv';
 const hasNative=()=>typeof NativeBridge!=='undefined';
 function accountSelect(name='accountId', value='', title='Account') {return selectField(name,title,value||state.accounts[0].id,state.accounts.map(a=>[a.id,a.label]));}
 function accountName(id) {return C.accountById(state,id).label;}
@@ -601,7 +799,9 @@ function extendedModal(kind,x,today) {
   if(dialog.mode==='edit'&&kind==='creditCards'){const c=x||{};return {title:c.id?'Edit card':'Add credit card',body:`<form id="ccForm" class="form-grid">${field('label','Card name',c.label||'','text','maxlength="80"')}${field('last4','Last 4 digits',c.last4||'','text','maxlength="4"').replace(' required','')}${field('statementDay','Statement closes (day of month)',c.statementDay||1,'number','min="1" max="28"')}${field('dueDay','Payment due (day of month)',c.dueDay||15,'number','min="1" max="28"')}${amountField('balance','Current balance',c.balance||0)}${amountField('minimumDue','Minimum due',c.minimumDue||0)}${field('apr','APR %',c.apr||0,'number','min="0" max="100" step="0.01"').replace(' required','')}<button class="primary">Save card</button></form>`};}
   if(dialog.mode==='edit'&&kind==='seasons'){const s=x||{};return {title:s.id?'Edit season':'Add season',body:`<form id="seasonForm" class="form-grid">${field('label','Season name (e.g., Summer contract)',s.label||'','text','maxlength="80"')}${field('startMonth','Start month',s.startMonth||C.localDate().slice(0,7),'month')}${field('endMonth','End month',s.endMonth||C.localDate().slice(0,7),'month')}${amountField('monthlyIncome','Monthly income',s.monthlyIncome||0)}${field('hoursPerWeek','Hours per week',s.hoursPerWeek||'','number','min="0" max="168"').replace(' required','')}${field('hourlyRate','Hourly rate',s.hourlyRate||'','number','min="0" step="0.01"').replace(' required','')}<button class="primary">Save season</button></form>`};}
   if(dialog.mode==='contribute')return {title:'Update savings progress',body:`<p>${esc(x.label)} · ${money(x.saved)} reserved</p><form id="contributionForm" class="form-grid">${amountField('amount','Contribution (negative to withdraw)',0,-1000000000)}${field('date','Date',today,'date','max="'+today+'"')}${field('note','Note','Contribution','text','maxlength="80"')}<p class="small">This reserves money already in your accounts; it does not move money or count as spending.</p><button class="primary">Save contribution</button></form>`};
-  if(dialog.mode==='csv')return {title:'Import / export',body:`<p class="small">Use date, description, amount headers. Optional: type, category, account, to_account. Dates: YYYY-MM-DD. Without type, negative amounts are expenses. Match account names or choose a default below. Export includes all transactions.</p><div class="row-actions"><button data-action="csv-open">Choose CSV file</button><button data-action="csv-export">Export CSV file</button></div><form id="csvForm" class="form-grid"><label>CSV text<textarea name="csv" required>${esc(csvDraft)}</textarea></label>${accountSelect()}${selectField('adjust','Imported amounts',['false','true'].includes(dialog.adjust)?dialog.adjust:'false',[['false','Already included in account balances'],['true','Apply amounts to account balances']])}<button class="secondary">Preview import</button></form>${csvPreview&&csvReconcile?`<p class="small">${csvReconcile.filter(x=>x.match).length} match notification inbox · ${csvReconcile.filter(x=>!x.match).length} missed by notifications</p><label class="check-label"><input type="checkbox" name="reconcile" checked> Reconcile with notification inbox (CSV wins on amount/name; your categories preserved; misses go to inbox)</label>`:''}${csvPreview?`<section class="section"><h3>${csvPreview.length} rows · ${csvPreview.filter(r=>r.duplicate).length} possible duplicates</h3><p class="small">Possible duplicates match date, description, amount, type, and accounts. Two legitimate same-day purchases may match; review before skipping.</p>${selectField('duplicates','Possible duplicates','skip',[['skip','Skip matching rows'],['keep','Keep every row']])}${csvPreview.transferPairs&&csvPreview.transferPairs.length?`<h3>Possible transfers</h3><p class="small">These pairs look like one transfer recorded twice (same amount, different accounts, within 3 days). Tick to import a pair as a single transfer instead of two transactions.</p>${csvPreview.transferPairs.map(p=>`<label class="check-label"><input type="checkbox" name="transfer-${p.id}" checked> ${money(p.amount)} · ${esc(accountName(p.fromAccount))} → ${esc(accountName(p.toAccount))} · ${dateText(p.date)}</label>`).join('')}`:''}<div class="csv-preview">${csvPreview.slice(0,50).map(r=>`<p>${esc(r.transaction.date)} · ${esc(r.transaction.label)} · ${money(r.transaction.amount)} ${r.duplicate?'(possible duplicate)':''}${r.transferPair?' (in transfer pair)':''}</p>`).join('')}</div>${csvPreview.length>50?'<p class="small">Showing first 50 rows.</p>':''}<button class="primary" data-action="csv-import">Import previewed transactions</button></section>`:''}`};
+  if(dialog.mode==='csv')return {title:'Import / export',body:`<p class="small">Use date, description, amount headers. Optional: type, category, account, to_account. Dates: YYYY-MM-DD. Without type, negative amounts are expenses. Match account names or choose a default below. Export includes all transactions. PDF statements are read on this device only — pick a text-based bank statement and its transactions appear below for review first. Positive amounts import as expenses, negatives as income/credits.</p><div class="row-actions"><button data-action="csv-open">Choose CSV file</button><button data-action="pdf-open">Choose PDF statement</button><button data-action="csv-export">Export CSV file</button><input type="file" id="pdfFileInput" accept="application/pdf,.pdf" style="position:absolute;width:1px;height:1px;opacity:0" aria-hidden="true" tabindex="-1"></div><form id="csvForm" class="form-grid"><label>CSV text<textarea name="csv" required>${esc(csvDraft)}</textarea></label>${accountSelect()}${selectField('adjust','Imported amounts',['false','true'].includes(dialog.adjust)?dialog.adjust:'false',[['false','Already included in account balances'],['true','Apply amounts to account balances']])}<button class="secondary">Preview import</button></form>${csvPreview&&csvReconcile?`<p class="small">${csvReconcile.filter(x=>x.match).length} match notification inbox · ${csvReconcile.filter(x=>!x.match).length} missed by notifications</p><label class="check-label"><input type="checkbox" name="reconcile" checked> Reconcile with notification inbox (${csvSource==='pdf'?'PDF statement':'CSV'} wins on amount/name; your categories preserved; misses go to inbox)</label>`:''}${csvPreview?`<section class="section"><h3>${csvPreview.length} rows · ${csvPreview.filter(r=>r.duplicate).length} possible duplicates</h3><p class="small">Possible duplicates match date, description, amount, type, and accounts. Two legitimate same-day purchases may match; review before skipping.</p>${selectField('duplicates','Possible duplicates','skip',[['skip','Skip matching rows'],['keep','Keep every row']])}${csvPreview.transferPairs&&csvPreview.transferPairs.length?`<h3>Possible transfers</h3><p class="small">These pairs look like one transfer recorded twice (same amount, different accounts, within 3 days). Tick to import a pair as a single transfer instead of two transactions.</p>${csvPreview.transferPairs.map(p=>`<label class="check-label"><input type="checkbox" name="transfer-${p.id}" checked> ${money(p.amount)} · ${esc(accountName(p.fromAccount))} → ${esc(accountName(p.toAccount))} · ${dateText(p.date)}</label>`).join('')}`:''}<div class="csv-preview">${csvPreview.slice(0,50).map(r=>`<p>${esc(r.transaction.date)} · ${esc(r.transaction.label)} · ${money(r.transaction.amount)} ${r.duplicate?'(possible duplicate)':''}${r.transferPair?' (in transfer pair)':''}</p>`).join('')}</div>${csvPreview.length>50?'<p class="small">Showing first 50 rows.</p>':''}<button class="primary" data-action="csv-import">Import previewed transactions</button></section>`:''}`};
+  if(dialog.mode==='update')return {title:'App updates',body:updateDialogBody()};
+  if(dialog.mode==='update-restore')return {title:'Restore your data',body:updateRestoreBody()};
   if(dialog.mode==='onboarding'){const s=onboardingWizard();return {title:'',body:s};}
   if(dialog.mode==='quick-add')return {title:'Quick add',body:quickAddDialog()};
   if(dialog.mode==='receipt')return {title:'Receipt',body:`<img src="${dialog.receipt}" alt="Receipt photo" style="max-width:100%;border-radius:12px">`};
@@ -1258,6 +1458,7 @@ applyPrivacy();
 window.addEventListener('error', e => logError(e.message, e.filename + ':' + e.lineno));
 window.addEventListener('unhandledrejection', e => logError(e.reason, 'promise'));
 render();
+checkPendingUpdate();
 syncReminders();
 syncWeekly();
 syncWidgets();

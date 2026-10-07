@@ -2983,24 +2983,134 @@
     const dateCol=locate('date','transaction date'),labelCol=locate('description','merchant','label','name'),amountCol=locate('amount'),typeCol=locate('type');
     if(dateCol<0||labelCol<0||amountCol<0)throw Error('Required headers: date, description, amount. Optional: type, category, account, to_account. Dates must be YYYY-MM-DD; signed amounts use negative for expenses.');
     const get=(r,...names)=>{const i=locate(...names);return i<0?'':(r[i]||'').trim();};
+    const parsed=rows.map((r,i)=>({rowTag:'CSV row',rowNum:i+2,colCount:r.length,headerLen:headers.length,
+      date:(r[dateCol]||'').trim(),label:(r[labelCol]||'').trim(),amountText:(r[amountCol]||'').trim(),
+      type:typeCol>=0?(r[typeCol]||'').trim().toLowerCase():undefined,
+      category:get(r,'category'),accountName:get(r,'account'),toAccountName:get(r,'to_account')}));
+    return previewRows(state,parsed,defaultAccountId,adjust);
+  }
+  // Shared import-preview builder: normalized rows {rowTag,rowNum,date,label,
+  // amountText,type,category,accountName,toAccountName} become {transaction,
+  // duplicate} with transfer-pair detection. CSV and PDF-statement imports
+  // both funnel through here so duplicates, transfers, and inbox
+  // reconciliation behave identically.
+  function previewRows(state,parsed,defaultAccountId,adjust=false) {
     const signature=t=>JSON.stringify([t.date,t.label.toLowerCase(),t.type,cents(t.amount),t.accountId,t.toAccountId||'']);
     const seen=new Set(state.transactions.map(signature));
-    const out = rows.map((r,i)=>{
+    const out = parsed.map((p,i)=>{
       try {
-        if(r.length!==headers.length)throw Error('Column count does not match the header.');
-        const signed=Number(r[amountCol].trim());if(!r[amountCol].trim()||!Number.isFinite(signed)||signed===0)throw Error('Use a nonzero numeric amount without currency symbols.');
-        const type=typeCol>=0?r[typeCol].trim().toLowerCase():(signed<0?'expense':'income');
-        const name=get(r,'account'),destName=get(r,'to_account');
-        const source=name?ensureAccounts(state).find(a=>a.label.toLowerCase()===name.toLowerCase()):accountById(state,defaultAccountId);
-        const dest=destName?state.accounts.find(a=>a.label.toLowerCase()===destName.toLowerCase()):null;
+        if(p.colCount!==undefined&&p.colCount!==p.headerLen)throw Error('Column count does not match the header.');
+        const signed=Number(String(p.amountText).trim());if(!String(p.amountText).trim()||!Number.isFinite(signed)||signed===0)throw Error('Use a nonzero numeric amount without currency symbols.');
+        const type=p.type!==undefined?p.type:(signed<0?'expense':'income');
+        const source=p.accountName?ensureAccounts(state).find(a=>a.label.toLowerCase()===p.accountName.toLowerCase()):accountById(state,defaultAccountId);
+        const dest=p.toAccountName?state.accounts.find(a=>a.label.toLowerCase()===p.toAccountName.toLowerCase()):null;
         if(!source||(type==='transfer'&&!dest))throw Error('Create the named accounts before importing.');
-        const t=transaction({id:'import-'+i,date:r[dateCol].trim(),label:r[labelCol].trim(),amount:Math.abs(signed),type,category:get(r,'category')||'Other',accountId:source.id,toAccountId:dest?dest.id:'',adjust});
+        const t=transaction({id:'import-'+i,date:p.date,label:p.label,amount:Math.abs(signed),type,category:p.category||'Other',accountId:source.id,toAccountId:dest?dest.id:'',adjust});
         if(t.date>localDate())throw Error('Future payments belong in Plan.');
         if(type==='transfer'&&source.id===dest.id)throw Error('A transfer needs two different accounts.');
         const key=signature(t),duplicate=seen.has(key);seen.add(key);return {transaction:t,duplicate};
-      } catch(e){throw Error('CSV row '+(i+2)+': '+e.message);}
+      } catch(e){throw Error((p.rowTag||'Row')+' '+(p.rowNum==null?i+1:p.rowNum)+': '+e.message);}
     });
     out.transferPairs = detectTransferPairs(out);
+    return out;
+  }
+  // Bank-statement PDF import (fully on-device): pdf.js getTextContent() items
+  // are grouped into text lines by their y position, then parseStatementLines()
+  // pulls out transaction rows. Best-effort by design — every row lands in the
+  // normal import preview so the user reviews before anything is saved.
+  function groupTextItems(items){
+    const pts=(Array.isArray(items)?items:[]).filter(it=>it&&typeof it.str==='string'&&it.str.trim()&&it.transform&&it.transform.length>=6)
+      .map(it=>({x:it.transform[4],y:it.transform[5],str:it.str}));
+    pts.sort((a,b)=>b.y-a.y||a.x-b.x);
+    const TOL=3,lines=[];
+    for(const p of pts){
+      const last=lines[lines.length-1];
+      if(last&&Math.abs(last.y-p.y)<=TOL)last.items.push(p);
+      else lines.push({y:p.y,items:[p]});
+    }
+    return lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
+  }
+  const STMT_MONTHS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const STMT_MON_RE='(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\\b';
+  function stmtNormYear(y){y=String(y);return y.length===2?(+y>50?'19'+y:'20'+y):y;}
+  function stmtDateIso(yyyy,mm,dd){
+    const s=String(yyyy).padStart(4,'0')+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+    return validDate(s)?s:null;
+  }
+  // A date at the very start of the line. Returns {mm,dd,yyyy,end} or null;
+  // yyyy is null when the line carries no year (the statement year applies).
+  function stmtDateAtStart(line){
+    let m=line.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})(?![\d\/\-.])/);
+    if(m)return{mm:+m[1],dd:+m[2],yyyy:m[3].length===2?+stmtNormYear(m[3]):+m[3],end:m[0].length};
+    m=line.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)/);
+    if(m)return{mm:+m[2],dd:+m[3],yyyy:+m[1],end:m[0].length};
+    m=line.match(new RegExp('^'+STMT_MON_RE+'\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{2}|\\d{4}))?(?![\\d])','i'));
+    if(m){const mon=STMT_MONTHS[m[1].toLowerCase().slice(0,3)];if(mon)return{mm:mon,dd:+m[2],yyyy:m[3]?+stmtNormYear(m[3]):null,end:m[0].length};}
+    m=line.match(new RegExp('^(\\d{1,2})(?:st|nd|rd|th)?\\s+'+STMT_MON_RE+'(?:,?\\s+(\\d{2}|\\d{4}))?(?![\\d])','i'));
+    if(m){const mon=STMT_MONTHS[m[2].toLowerCase().slice(0,3)];if(mon)return{mm:mon,dd:+m[1],yyyy:m[3]?+stmtNormYear(m[3]):null,end:m[0].length};}
+    m=line.match(new RegExp('^(\\d{1,2})-'+STMT_MON_RE+'-(\\d{2}|\\d{4})(?![\\d])','i'));
+    if(m){const mon=STMT_MONTHS[m[2].toLowerCase().slice(0,3)];if(mon)return{mm:mon,dd:+m[1],yyyy:+stmtNormYear(m[3]),end:m[0].length};}
+    return null;
+  }
+  // First amount-like token wins (later ones are usually running balances).
+  // Supports $1,234.56, -$12.50, $-12.50, (12.50), 12.50-, 12.50 CR/DR.
+  function stmtAmountToken(line){
+    const m=line.match(/(\()?(-)?\$?\s*([\d,]*\d\.\d{2})\s*(\))?(-)?(?:\s*(CR|DR))?/i);
+    if(!m)return null;
+    const negative=!!(m[1]||m[2]||m[4]||m[5])||/cr/i.test(m[6]||'');
+    const value=Number(m[3].replace(/,/g,''));
+    if(!Number.isFinite(value)||value===0)return null;
+    return{value,negative,index:m.index,token:m[0]};
+  }
+  function stmtInferYear(lines,today){
+    for(const raw of lines){
+      const s=String(raw||'');
+      const m=s.match(/(statement|billing)\s+(period|date)[^0-9]{0,60}\b((?:19|20)\d{2})/i)
+        ||s.match(/\b(ending|through|thru|as\s+of)\b[^0-9]{0,60}\b((?:19|20)\d{2})/i);
+      if(m)return+m[m.length-1];
+    }
+    return+String(today).slice(0,4);
+  }
+  // lines: array of text-line strings. Returns normalized rows ready for
+  // previewRows(): {rowTag,rowNum,date,label,amountText,type,...}.
+  // opts: {today:'YYYY-MM-DD', year:2026} (both default sensibly).
+  function parseStatementLines(lines,opts){
+    opts=opts||{};
+    const today=opts.today||localDate();
+    const year=opts.year||stmtInferYear(lines,today);
+    let section='';
+    const out=[];
+    const skipRe=/^\s*(page\s+\d+(\s+of\s+\d+)?|statement\s+period|billing\s+period|account\s+summary|previous\s+balance|beginning\s+balance|ending\s+balance|new\s+balance|total\s+minimum|minimum\s+payment|payment\s+due|account\s+number|member\s+since)\b/i;
+    for(const raw of lines){
+      const line=String(raw||'').replace(/\s+/g,' ').trim();
+      if(!line||skipRe.test(line))continue;
+      if(/\bcontinued\b/i.test(line)&&line.length<48)continue;
+      if(/^\s*(total|subtotal)\b/i.test(line))continue;
+      const hasAmt=!!stmtAmountToken(line);
+      if(!hasAmt){
+        if(/\b(payments?\s+and\s+credits?|deposits?(\s+and\s+additions?)?|credits?\s+received|refunds?(\s+issued)?)\b/i.test(line)){section='income';continue;}
+        if(/\b(purchases?|charges?|debits?|withdrawals?|fees?(\s+charged)?|new\s+charges?|electronic\s+withdrawals?)\b/i.test(line)){section='expense';continue;}
+      }
+      const d=stmtDateAtStart(line);
+      if(!d)continue;
+      const rest=line.slice(d.end).trim();
+      const amt=stmtAmountToken(rest);
+      if(!amt)continue;
+      let label=(rest.slice(0,amt.index)+rest.slice(amt.index+amt.token.length))
+        .replace(/\(?-?\$?\s*[\d,]*\d\.\d{2}\s*\)?-?(?:\s*(?:CR|DR))?\b/gi,' ') // any leftover amounts are balance columns
+        .replace(/\s{2,}/g,' ').trim().replace(/^[-–—·•]\s*/,'');
+      if(label.length<2)continue;
+      let iso=stmtDateIso(d.yyyy==null?year:d.yyyy,d.mm,d.dd);
+      if(!iso)continue;
+      if(iso>today){ // e.g. a December statement read in January: roll back a year
+        const iso2=stmtDateIso(+iso.slice(0,4)-1,d.mm,d.dd);
+        if(iso2)iso=iso2;
+      }
+      out.push({rowTag:'Statement row',rowNum:out.length+1,date:iso,label:label.slice(0,120),
+        amountText:(amt.negative?'-':'')+amt.value.toFixed(2),
+        type:section==='income'?'income':(amt.negative?'income':'expense'),
+        category:'',accountName:'',toAccountName:''});
+    }
     return out;
   }
   function exportCSV(state) {
@@ -3379,7 +3489,7 @@
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
   spendingTrends, monthOverMonth, insights, monthlyReview, weeklySummary, widgetPayload,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
-    monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+    monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, previewRows, groupTextItems, parseStatementLines, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

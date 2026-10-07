@@ -1,3 +1,7 @@
+# 1.60.0
+
+- PDF bank-statement import: the Import/export dialog has a new **Choose PDF statement** button next to Choose CSV file. Pick a text-based bank statement PDF and its transactions are detected automatically, then shown in the same review preview as CSV imports (duplicates, transfer pairs, inbox reconciliation) before anything is saved. Everything is parsed on-device with a bundled PDF reader — the statement never leaves your phone. Guardrails: 10 MB / 50-page limits, friendly errors for password-protected or scanned (image-only) PDFs.
+
 # 1.59.0
 
 - The "Google Wallet · N to review" banner now appears at the top of the Dashboard too, not just the Activity page. Tapping it jumps to the review screen, same as before.

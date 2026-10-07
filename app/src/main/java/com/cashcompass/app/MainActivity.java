@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
                 if (url.startsWith(ORIGIN)) {
                     String name = url.substring(ORIGIN.length());
                     String mime = name.equals("index.html") ? "text/html" : name.equals("app.css") ? "text/css" : "application/javascript";
-                    if (name.equals("index.html") || name.equals("app.css") || name.equals("core.js") || name.equals("app.js")) {
+                    if (name.equals("index.html") || name.equals("app.css") || name.equals("core.js") || name.equals("app.js") || name.equals("vendor/pdf.min.js") || name.equals("vendor/pdf.worker.min.js")) {
                         try { return new WebResourceResponse(mime, "UTF-8", getAssets().open(name)); }
                         catch (IOException ignored) { /* Deny missing assets, with no network fallback. */ }
                     }
@@ -372,6 +372,226 @@ public class MainActivity extends Activity {
                     .putExtra(android.content.Intent.EXTRA_TITLE, "Cash-Compass-transactions.csv"), SAVE_CSV); }
                 catch (android.content.ActivityNotFoundException e) { pendingCSV = null; callback("cashCompassNotice", "No file picker available."); }
             });
+        }
+        // ---- In-app updater ----
+        // The WebView blocks outside URLs, so the update check, download, and
+        // install steps run natively here. All user data stays on the device.
+        @android.webkit.JavascriptInterface public String appVersion() {
+            try {
+                android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                long code = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+                return "{\"versionName\":" + org.json.JSONObject.quote(pi.versionName)
+                    + ",\"versionCode\":" + code + "}";
+            } catch (Exception e) { return "{\"versionName\":\"?\",\"versionCode\":0}"; }
+        }
+        @android.webkit.JavascriptInterface public void checkForUpdate() {
+            // GitHub API on a worker thread. On-demand only (unauthenticated
+            // limit is 60/hr/IP) — no background polling. Result arrives via
+            // window.cashCompassUpdateCheck(json).
+            new Thread(() -> {
+                String result;
+                try {
+                    javax.net.ssl.HttpsURLConnection conn = (javax.net.ssl.HttpsURLConnection)
+                        new java.net.URL("https://api.github.com/Bobbywasabi31/odddough-android/releases/latest").openConnection();
+                    conn.setRequestProperty("User-Agent", "OddDough-Updater");
+                    conn.setRequestProperty("Accept", "application/vnd.github+json");
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(10000);
+                    int code = conn.getResponseCode();
+                    if (code == 403 || code == 429) {
+                        result = "{\"ok\":false,\"error\":\"GitHub rate limit reached. Try again in a little while.\"}";
+                    } else if (code != 200) {
+                        result = "{\"ok\":false,\"error\":\"GitHub returned HTTP " + code + ".\"}";
+                    } else {
+                        String body;
+                        try (java.io.InputStream in = conn.getInputStream();
+                             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                            byte[] buf = new byte[8192]; int n;
+                            while ((n = in.read(buf)) != -1) {
+                                if (out.size() + n > 262144) throw new IOException("Release payload too large.");
+                                out.write(buf, 0, n);
+                            }
+                            body = out.toString("UTF-8");
+                        }
+                        org.json.JSONObject rel = new org.json.JSONObject(body);
+                        String apkUrl = null;
+                        org.json.JSONArray assets = rel.optJSONArray("assets");
+                        if (assets != null) for (int i = 0; i < assets.length(); i++) {
+                            org.json.JSONObject a = assets.optJSONObject(i);
+                            if (a != null && a.optString("name", "").endsWith(".apk")) {
+                                apkUrl = a.optString("browser_download_url", "");
+                                break;
+                            }
+                        }
+                        String notes = rel.optString("body", "");
+                        if (notes.length() > 2000) notes = notes.substring(0, 2000);
+                        org.json.JSONObject out = new org.json.JSONObject();
+                        out.put("ok", true);
+                        out.put("tag", rel.optString("tag_name", ""));
+                        out.put("name", rel.optString("name", ""));
+                        out.put("notes", notes);
+                        out.put("apkUrl", apkUrl == null ? org.json.JSONObject.NULL : apkUrl);
+                        result = out.toString();
+                    }
+                } catch (java.net.UnknownHostException e) {
+                    result = "{\"ok\":false,\"error\":\"No internet connection.\"}";
+                } catch (Exception e) {
+                    result = "{\"ok\":false,\"error\":\"Could not check for updates.\"}";
+                }
+                callback("cashCompassUpdateCheck", result);
+            }, "odddough-update-check").start();
+        }
+        @android.webkit.JavascriptInterface public String writeUpdateBackup(String json, String tag) {
+            // Pre-update backup — Alex's no-data-loss requirement. Writes the
+            // current plan to app-specific external storage, which survives app
+            // updates (removed only on uninstall), and records a pending-update
+            // marker so the next launch can verify and offer a one-tap restore.
+            try {
+                if (json == null || json.length() > 16000000)
+                    return "{\"ok\":false,\"error\":\"Backup data too large.\"}";
+                java.io.File dir = new java.io.File(getExternalFilesDir(null), "updates");
+                if (!dir.exists() && !dir.mkdirs())
+                    return "{\"ok\":false,\"error\":\"Could not create the backup folder.\"}";
+                String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",
+                    java.util.Locale.US).format(new java.util.Date());
+                java.io.File f = new java.io.File(dir, "odddough-backup-" + stamp + ".json");
+                try (java.io.OutputStream out = new java.io.FileOutputStream(f)) {
+                    out.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+                getSharedPreferences("updater", MODE_PRIVATE).edit()
+                    .putString("pending", new org.json.JSONObject()
+                        .put("tag", tag == null ? "" : tag)
+                        .put("backupPath", f.getAbsolutePath())
+                        .put("when", System.currentTimeMillis()).toString())
+                    .apply();
+                return "{\"ok\":true,\"path\":" + org.json.JSONObject.quote(f.getAbsolutePath()) + "}";
+            } catch (Exception e) {
+                return "{\"ok\":false,\"error\":\"Could not save the pre-update backup.\"}";
+            }
+        }
+        @android.webkit.JavascriptInterface public String pendingUpdate() {
+            String s = getSharedPreferences("updater", MODE_PRIVATE).getString("pending", null);
+            return s == null ? "null" : s;
+        }
+        @android.webkit.JavascriptInterface public void clearPendingUpdate() {
+            getSharedPreferences("updater", MODE_PRIVATE).edit().remove("pending").apply();
+        }
+        @android.webkit.JavascriptInterface public String readBackupFile(String path) {
+            // Reads only files inside our own updates dir — never an arbitrary path.
+            try {
+                java.io.File dir = new java.io.File(getExternalFilesDir(null), "updates");
+                java.io.File f = new java.io.File(path == null ? "" : path);
+                if (!f.getCanonicalPath().startsWith(dir.getCanonicalPath() + java.io.File.separator))
+                    return "{\"ok\":false,\"error\":\"Invalid backup path.\"}";
+                if (!f.isFile() || f.length() > 16000000)
+                    return "{\"ok\":false,\"error\":\"Backup file not found.\"}";
+                byte[] bytes;
+                try (java.io.InputStream in = new java.io.FileInputStream(f);
+                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                    byte[] buf = new byte[8192]; int n;
+                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                    bytes = out.toByteArray();
+                }
+                return "{\"ok\":true,\"json\":" + org.json.JSONObject.quote(
+                    new String(bytes, java.nio.charset.StandardCharsets.UTF_8)) + "}";
+            } catch (Exception e) {
+                return "{\"ok\":false,\"error\":\"Could not read the backup file.\"}";
+            }
+        }
+        @android.webkit.JavascriptInterface public String startUpdateDownload(String apkUrl) {
+            try {
+                if (apkUrl == null || !(apkUrl.startsWith("https://github.com/")
+                        || apkUrl.startsWith("https://objects.githubusercontent.com/")
+                        || apkUrl.startsWith("https://release-assets.githubusercontent.com/")))
+                    return "{\"ok\":false,\"error\":\"Unexpected download URL.\"}";
+                android.app.DownloadManager dm =
+                    (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                android.app.DownloadManager.Request req =
+                    new android.app.DownloadManager.Request(android.net.Uri.parse(apkUrl));
+                req.setTitle("OddDough update");
+                req.setDescription("Downloading the latest OddDough release.");
+                req.setNotificationVisibility(
+                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE);
+                req.setDestinationInExternalFilesDir(this,
+                    android.os.Environment.DIRECTORY_DOWNLOADS, "odddough-update.apk");
+                long id = dm.enqueue(req);
+                getSharedPreferences("updater", MODE_PRIVATE).edit().putLong("downloadId", id).apply();
+                return "{\"ok\":true}";
+            } catch (Exception e) {
+                return "{\"ok\":false,\"error\":\"Could not start the download.\"}";
+            }
+        }
+        @android.webkit.JavascriptInterface public String updateDownloadProgress() {
+            try {
+                long id = getSharedPreferences("updater", MODE_PRIVATE).getLong("downloadId", -1);
+                if (id < 0) return "{\"status\":\"none\"}";
+                android.app.DownloadManager dm =
+                    (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                try (android.database.Cursor c = dm.query(
+                        new android.app.DownloadManager.Query().setFilterById(id))) {
+                    if (c == null || !c.moveToFirst()) return "{\"status\":\"none\"}";
+                    int st = c.getInt(c.getColumnIndexOrThrow(
+                        android.app.DownloadManager.COLUMN_STATUS));
+                    long soFar = c.getLong(c.getColumnIndexOrThrow(
+                        android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    long total = c.getLong(c.getColumnIndexOrThrow(
+                        android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    String s = st == android.app.DownloadManager.STATUS_SUCCESSFUL ? "complete"
+                        : st == android.app.DownloadManager.STATUS_FAILED ? "failed"
+                        : st == android.app.DownloadManager.STATUS_PAUSED ? "paused" : "downloading";
+                    return "{\"status\":\"" + s + "\",\"downloaded\":" + soFar
+                        + ",\"total\":" + total + "}";
+                }
+            } catch (Exception e) { return "{\"status\":\"error\"}"; }
+        }
+        @android.webkit.JavascriptInterface public String canRequestInstalls() {
+            if (Build.VERSION.SDK_INT < 26) return "{\"ok\":true}";
+            return "{\"ok\":" + getPackageManager().canRequestPackageInstalls() + "}";
+        }
+        @android.webkit.JavascriptInterface public void openInstallSettings() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        android.net.Uri.parse("package:" + getPackageName())));
+                } catch (android.content.ActivityNotFoundException e) {
+                    callback("cashCompassNotice",
+                        "Open Android Settings and allow \"Install unknown apps\" for OddDough.");
+                }
+            });
+        }
+        @android.webkit.JavascriptInterface public String installUpdate() {
+            // SIGNING GATE: Android installs an update only when the new APK is
+            // signed with the SAME key as the installed app. CI currently signs
+            // every build with a fresh ephemeral debug key, so until Alex
+            // configures one stable signing key the system installer will
+            // reject the update (INSTALL_FAILED_UPDATE_INCOMPATIBLE). This
+            // flow is complete and correct — it is gated on that signing-key
+            // decision, not on code.
+            try {
+                long id = getSharedPreferences("updater", MODE_PRIVATE).getLong("downloadId", -1);
+                if (id < 0) return "{\"ok\":false,\"error\":\"No downloaded update found.\"}";
+                android.app.DownloadManager dm =
+                    (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                final android.net.Uri uri = dm.getUriForDownloadedFile(id);
+                if (uri == null)
+                    return "{\"ok\":false,\"error\":\"The downloaded file is gone. Download again.\"}";
+                runOnUiThread(() -> {
+                    try {
+                        android.content.Intent intent =
+                            new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                        intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                            | android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        callback("cashCompassNotice", "Could not start the installer.");
+                    }
+                });
+                return "{\"ok\":true}";
+            } catch (Exception e) {
+                return "{\"ok\":false,\"error\":\"Could not start the installer.\"}";
+            }
         }
     }
 

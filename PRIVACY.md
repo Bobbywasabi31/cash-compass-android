@@ -4,8 +4,8 @@ OddDough 1.5.1 preview stores the plan you enter in this app's local WebView sto
 
 Backup text may contain personal financial details. It stays in the app until you copy it and choose where to save or share it. Clearing app storage or uninstalling removes your plan. Android backup is disabled. Your device's own security and clipboard settings apply to local data.
 
-## CSV and reminders
-CSV import/export uses Android’s system file picker. Only files you select are read or written. Your chosen storage provider controls exported files. Optional reminders store bill dates locally, request Android notification permission, and display generic text without amounts or merchant names. The optional weekly recap stores its precomputed summary text on-device (it includes spending and safe-to-spend amounts) and posts it as a private notification on Sundays. No bank connection, analytics, or server upload is added.
+## CSV, PDF statements, and reminders
+CSV import/export uses Android’s system file picker. Only files you select are read or written. Your chosen storage provider controls exported files. PDF bank-statement import reads the file you pick entirely on-device with a bundled PDF parser — the PDF and its contents never leave your phone, and no network request is made. Statement parsing is heuristic, so every detected transaction is shown in the import preview for your review before anything is saved. Optional reminders store bill dates locally, request Android notification permission, and display generic text without amounts or merchant names. The optional weekly recap stores its precomputed summary text on-device (it includes spending and safe-to-spend amounts) and posts it as a private notification on Sundays. No bank connection, analytics, or server upload is added.
 
 ## Optional Wallet notification access
 

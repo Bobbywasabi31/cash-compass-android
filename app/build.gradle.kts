@@ -10,8 +10,8 @@ android {
         applicationId = "com.cashcompass.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 63
-        versionName = "1.59.0"
+        versionCode = 64
+        versionName = "1.60.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
