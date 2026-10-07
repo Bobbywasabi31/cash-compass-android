@@ -42,9 +42,10 @@ public final class AppLock {
         if (Build.VERSION.SDK_INT >= 30) {
             BiometricManager bm = activity.getSystemService(BiometricManager.class);
             if (bm == null) return "none";
-            int any = BiometricManager.BIOMETRIC_STRONG | BiometricManager.DEVICE_CREDENTIAL;
+            int strong = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+            int any = strong | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
             if (bm.canAuthenticate(any) != BiometricManager.BIOMETRIC_SUCCESS) return "none";
-            return bm.canAuthenticate(BiometricManager.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+            return bm.canAuthenticate(strong) == BiometricManager.BIOMETRIC_SUCCESS
                     ? "biometric" : "device";
         }
         if (Build.VERSION.SDK_INT == 29) {
