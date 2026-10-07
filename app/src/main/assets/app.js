@@ -46,7 +46,7 @@ function persist(next, recovery = false) {
   C.ensureAccounts(next); C.syncBalance(next); C.snapshot(next);
   try { localStorage.setItem(STORE, JSON.stringify(next)); }
   catch (e) { throw Error('Could not save to this device. No changes were applied. Copy your backup from You before closing.'); }
-  state = next; storageError = ''; storageBlocked = false; syncReminders(); syncWeekly();
+  state = next; storageError = ''; storageBlocked = false; syncReminders(); syncWeekly(); syncWidgets();
   maybeDailyBackup();
 }
 function update(fn) { const next = JSON.parse(JSON.stringify(state)); fn(next); persist(next); reply = ''; }
@@ -633,6 +633,15 @@ function syncWeekly() {
   try {NativeBridge.syncWeeklySummary(JSON.stringify({enabled:state.weeklySummary===true,
     title:'Weekly money recap', text:'This week you '+parts.join(', ')+'.'}));}
   catch(e){flash('Could not update weekly recap. Open You and try again.');}
+}
+// Home-screen widgets (roadmap #12 safe-to-spend, #85 upcoming bills):
+// recomputed on every save so the stored payload stays fresh; the native
+// side renders it and re-renders daily. Silent on failure — a stale widget
+// is not worth a toast on every save.
+function syncWidgets() {
+  if(!hasNative())return;
+  try {NativeBridge.syncWidgets(JSON.stringify(C.widgetPayload(state)));}
+  catch(e){/* widget keeps last good payload */}
 }
 // Launcher shortcuts (roadmap #86): opened from the native side.
 window.cashCompassShortcut = kind => {
@@ -1243,4 +1252,5 @@ window.addEventListener('unhandledrejection', e => logError(e.reason, 'promise')
 render();
 syncReminders();
 syncWeekly();
+syncWidgets();
 walletRefresh();

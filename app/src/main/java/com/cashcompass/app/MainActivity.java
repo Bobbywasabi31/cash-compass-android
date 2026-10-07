@@ -348,6 +348,13 @@ public class MainActivity extends Activity {
             });
             return true;
         }
+        @android.webkit.JavascriptInterface public void syncWidgets(String json) {
+            // Home-screen widgets (roadmap #12, #85): validated, stored, and
+            // rendered by HomeWidgets. Silent on failure — the widgets keep
+            // their last good payload instead of nagging on every save.
+            try { HomeWidgets.store(MainActivity.this, json); }
+            catch (Exception e) { /* keep last good payload */ }
+        }
         @android.webkit.JavascriptInterface public void openCSV() {
             runOnUiThread(() -> {
                 try { startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)

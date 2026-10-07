@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_bills_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="16dp">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Upcoming bills"
+        android:textColor="#6B6259"
+        android:textSize="12sp" />
+    <TextView
+        android:id="@+id/widget_bill_1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="—"
+        android:textColor="#1E1B16"
+        android:textSize="15sp" />
+    <TextView
+        android:id="@+id/widget_bill_2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#1E1B16"
+        android:textSize="15sp" />
+    <TextView
+        android:id="@+id/widget_bill_3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#1E1B16"
+        android:textSize="15sp" />
+    <TextView
+        android:id="@+id/widget_bills_sub"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#B3541E"
+        android:textSize="13sp" />
+</LinearLayout>

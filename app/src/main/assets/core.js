@@ -2086,6 +2086,21 @@
       safe: forecast(state, today).safe,
       billsDue: upcoming.length, billsTotal: dollars(upcoming.reduce((s, b) => s + cents(b.amount), 0)) };
   }
+  // Home-screen widget payload (roadmap #12, #85): compact JSON for the
+  // native side to render. Shared by both widgets: safe-to-spend + days
+  // until payday, and the next few bills due. Kept small (labels truncated)
+  // because it lives in SharedPreferences and is visible without unlock.
+  function widgetPayload(state, today = localDate()) {
+    const f = forecast(state, today);
+    const upcoming = (state.bills || []).filter(b => b.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
+      .map(b => ({ label: String(b.label || 'Bill').slice(0, 40), date: b.date,
+        amount: dollars(cents(b.amount)), daysOut: daysBetween(today, b.date) }));
+    const overdue = (state.bills || []).filter(b => b.date < today).length;
+    return { safe: f.safe, paydayDate: f.next ? f.next.date : null,
+      daysUntilPayday: f.next ? Math.max(0, daysBetween(today, f.next.date)) : null,
+      bills: upcoming, overdue };
+  }
   // Savings goal auto-allocation (roadmap #49): per-paycheck contribution
   // needed to hit the goal deadline.
   function goalPaycheckAmount(goal, payFrequency = 'monthly') {
@@ -3362,7 +3377,7 @@
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
-  spendingTrends, monthOverMonth, insights, monthlyReview, weeklySummary,
+  spendingTrends, monthOverMonth, insights, monthlyReview, weeklySummary, widgetPayload,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
     monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

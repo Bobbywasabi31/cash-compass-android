@@ -15,6 +15,10 @@ A private native queue retains up to 200 notices (title/body limited to 2,000 ch
 
 JSON backups include Wallet settings, review text, transaction links, and receipt identifiers, but not the Android permission or unprocessed native queue. Opening the app normally imports queued notices. Use Check captured purchases on the Wallet screen before making a backup; storage errors or a full inbox can leave notices in the native queue. Restoring, clearing, or replacing a plan pauses capture and clears the native queue. Android permission itself is revoked only in Android settings. Uninstalling removes all local data.
 
+## Home-screen widgets
+
+Optional, and only active once you add a widget to your home screen. Each save in the app refreshes a compact local payload (safe-to-spend, days until payday, the next payday date, and the next 3 bills due with labels, amounts, and due dates) stored in the app's private SharedPreferences; nothing is sent anywhere. A daily alarm re-renders the widgets so day counts stay correct. Note that widget contents are visible on your home screen (and potentially the lock screen, depending on your launcher) without unlocking OddDough — remove the widgets if you don't want those amounts visible there.
+
 ## Optional app lock
 
 Disabled by default. When enabled (You → App lock), opening OddDough asks for your fingerprint/face or your phone's PIN, pattern, or password, and the app's preview is hidden in the recent-apps screen. Authentication is handled entirely by Android's system prompt: OddDough never sees, stores, or transmits biometric data or your device credential. Only the on/off preference is stored on-device. If the phone has no screen lock set, app lock cannot be enabled — and if the screen lock is later removed, app lock disarms itself rather than locking you out.

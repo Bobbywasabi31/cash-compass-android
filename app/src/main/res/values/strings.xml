@@ -4,4 +4,6 @@
     <string name="shortcut_expense_long">Record an expense in OddDough</string>
     <string name="shortcut_income_short">Add income</string>
     <string name="shortcut_income_long">Record income in OddDough</string>
+    <string name="widget_safe_desc">Shows your safe-to-spend and days until payday</string>
+    <string name="widget_bills_desc">Shows your next bills due</string>
 </resources>
