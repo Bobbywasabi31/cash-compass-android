@@ -1,3 +1,7 @@
+# 1.57.0
+
+- App lock (#7): opt-in under You → App lock. Asks for your fingerprint/face or phone PIN every time OddDough opens, and hides the app's preview in the recent-apps screen. Unlock is handled entirely by Android's system prompt — the app never sees your biometric data or PIN. Needs a phone screen lock to be set first.
+
 # 1.56.0
 
 - New name: Cash Compass is now **OddDough** — same app, same data, fresh identity. Your plan, backups, and settings carry over untouched. The package name is unchanged, so this installs right over the previous preview.

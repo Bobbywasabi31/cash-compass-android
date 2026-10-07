@@ -24,6 +24,11 @@ public class MainActivity extends Activity {
     private String pendingCSV;
     private String pendingShortcut;
     private boolean pageReady;
+    private android.widget.FrameLayout rootView;
+    private android.view.View lockOverlay;
+    private boolean unlocked; // false at process start: app lock re-arms on every cold start
+    private boolean authInProgress;
+    private boolean cancelCooldown; // after a cancel, wait for the Unlock button instead of re-prompting
     private static final int OPEN_CSV = 41, SAVE_CSV = 42, NOTIFICATIONS = 43;
     private ValueCallback<android.net.Uri[]> receiptCallback;
     private static final int PICK_RECEIPT = 44;
@@ -107,8 +112,10 @@ public class MainActivity extends Activity {
             }
         });
         root.addView(app, new FrameLayout.LayoutParams(-1, -1));
+        rootView = root;
         setContentView(root);
         root.requestApplyInsets();
+        applySecureFlag();
         app.loadUrl(ORIGIN + "index.html");
         handleShortcut(getIntent());
         if (Build.VERSION.SDK_INT >= 33) {
@@ -170,6 +177,96 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (app != null) callback("cashCompassWalletRefresh", "");
+        maybeLock();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        // Re-lock when leaving the app. Skipped while the system unlock UI is
+        // up (API 24-28 device-credential intent pauses us), so a successful
+        // unlock isn't immediately undone.
+        if (!authInProgress) unlocked = false;
+    }
+
+    /** Hides the app preview in the recent-apps screen while app lock is on. */
+    private void applySecureFlag() {
+        if (AppLock.isEnabled(this)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+    }
+
+    /** Shows the lock overlay and prompts for unlock when app lock is armed. */
+    private void maybeLock() {
+        if (!AppLock.isEnabled(this) || unlocked || authInProgress) return;
+        String mode;
+        try { mode = AppLock.mode(this); } catch (Exception e) { mode = "none"; }
+        if ("none".equals(mode)) {
+            // No screen lock on the phone: nothing to unlock with, and leaving
+            // the app permanently locked would brick it. Disarm instead.
+            AppLock.setEnabled(this, false);
+            applySecureFlag();
+            callback("cashCompassNotice", "App lock turned off: this phone has no screen lock set.");
+            return;
+        }
+        showLockOverlay();
+        if (cancelCooldown) return; // user cancelled: wait for an explicit Unlock tap
+        startPrompt();
+    }
+
+    private void startPrompt() {
+        if (!AppLock.isEnabled(this) || unlocked || authInProgress) return;
+        cancelCooldown = false;
+        authInProgress = true;
+        AppLock.prompt(this, ok -> {
+            authInProgress = false;
+            runOnUiThread(() -> {
+                if (ok) {
+                    unlocked = true;
+                    hideLockOverlay();
+                } else {
+                    cancelCooldown = true; // stays covered; the Unlock button retries
+                    showLockOverlay();
+                }
+            });
+        });
+    }
+
+    private void showLockOverlay() {
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed() || rootView == null) return;
+            if (lockOverlay != null) {
+                lockOverlay.setVisibility(android.view.View.VISIBLE);
+                return;
+            }
+            android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+            box.setOrientation(android.widget.LinearLayout.VERTICAL);
+            box.setGravity(android.view.Gravity.CENTER);
+            box.setBackgroundColor(Color.parseColor("#F8F7F4"));
+            android.widget.TextView icon = new android.widget.TextView(this);
+            icon.setText("\uD83D\uDD12");
+            icon.setTextSize(48);
+            icon.setGravity(android.view.Gravity.CENTER);
+            android.widget.TextView label = new android.widget.TextView(this);
+            label.setText("OddDough is locked");
+            label.setTextSize(20);
+            label.setGravity(android.view.Gravity.CENTER);
+            label.setPadding(0, 24, 0, 32);
+            android.widget.Button unlock = new android.widget.Button(this);
+            unlock.setText("Unlock");
+            unlock.setOnClickListener(v -> startPrompt());
+            int pad = (int) (32 * getResources().getDisplayMetrics().density);
+            box.setPadding(pad, pad, pad, pad);
+            box.addView(icon);
+            box.addView(label);
+            box.addView(unlock);
+            lockOverlay = box;
+            rootView.addView(box, new FrameLayout.LayoutParams(-1, -1));
+        });
+    }
+
+    private void hideLockOverlay() {
+        runOnUiThread(() -> {
+            if (lockOverlay != null) lockOverlay.setVisibility(android.view.View.GONE);
+        });
     }
     public final class Bridge {
         @android.webkit.JavascriptInterface public String walletStatus() { return WalletNotifications.status(MainActivity.this, walletAccess()); }
@@ -225,6 +322,32 @@ public class MainActivity extends Activity {
                 WeeklySummary.schedule(MainActivity.this);
             } catch (Exception e) { callback("cashCompassNotice", "Could not update weekly recap."); }
         }
+        @android.webkit.JavascriptInterface public String appLockStatus() {
+            String mode;
+            try { mode = AppLock.mode(MainActivity.this); } catch (Exception e) { mode = "none"; }
+            return "{\"enabled\":" + AppLock.isEnabled(MainActivity.this)
+                    + ",\"mode\":" + org.json.JSONObject.quote(mode) + "}";
+        }
+        @android.webkit.JavascriptInterface public boolean setAppLock(boolean enabled) {
+            if (enabled) {
+                String mode;
+                try { mode = AppLock.mode(MainActivity.this); } catch (Exception e) { mode = "none"; }
+                if ("none".equals(mode)) return false; // nothing to unlock with
+            }
+            AppLock.setEnabled(MainActivity.this, enabled);
+            runOnUiThread(() -> {
+                applySecureFlag();
+                if (enabled) {
+                    unlocked = false;
+                    cancelCooldown = false;
+                    maybeLock(); // prompt right away so the user verifies it works
+                } else {
+                    unlocked = true;
+                    hideLockOverlay();
+                }
+            });
+            return true;
+        }
         @android.webkit.JavascriptInterface public void openCSV() {
             runOnUiThread(() -> {
                 try { startActivityForResult(new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT)
@@ -253,6 +376,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (AppLock.onActivityResult(requestCode, resultCode)) return; // API 24-28 unlock flow
         if (requestCode == PICK_RECEIPT) {
             ValueCallback<android.net.Uri[]> cb = receiptCallback;
             receiptCallback = null;
