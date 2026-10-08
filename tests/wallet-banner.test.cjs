@@ -81,7 +81,7 @@ test('dashboard shows the wallet review banner at the very top when items are pe
   s.wallet.inbox.push(item('a'), item('b'));
   t.setState(s);
   const html = t.home();
-  const at = html.indexOf('Google Wallet · 2 to review');
+  const at = html.indexOf('Wallet & bank · 2 to review');
   assert.ok(at >= 0, 'banner present on dashboard');
   assert.ok(at < html.indexOf('page-heading'), 'banner renders before the greeting');
   assert.match(html, /data-tab="wallet"/);
@@ -102,6 +102,6 @@ test('activity page banner still renders with the count', () => {
   s.wallet.inbox.push(item('a'));
   t.setState(s);
   const html = t.transactions();
-  assert.match(html, /Google Wallet · 1 to review/);
+  assert.match(html, /Wallet & bank · 1 to review/);
   assert.match(html, /data-tab="wallet"/);
 });

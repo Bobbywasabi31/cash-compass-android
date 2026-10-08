@@ -1,3 +1,7 @@
+# 1.61.0
+
+- Bank-app notification capture (#40): opt-in under You → Wallet & bank import. Transaction alerts from an allowlisted set of bank apps (Chase, Bank of America, Wells Fargo, Citi, Capital One, U.S. Bank, Discover, PNC, Navy Federal, American Express) are captured on-device and share the Wallet import's review inbox, deduplication, and CSV reconciliation. Bank alerts always need your review — they never insert automatically. Enabling Wallet capture does not enable bank alerts; nothing is uploaded. PRIVACY.md updated.
+
 # 1.60.1
 
 - PDF import fix: statements with year-less dates (e.g. credit-union "09/01" format) now import — dates were silently skipped before. Withdrawal/Deposit prefixes in descriptions now set the transaction direction (checking-account debits shown as negative are expenses, not income). Also fixed text lines merging when a statement sets headers very close to transaction rows.

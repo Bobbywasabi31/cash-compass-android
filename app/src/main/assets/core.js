@@ -1679,7 +1679,8 @@
     const taxDelta = number(x.taxDelta || 0);
     if (taxDelta > amount || (taxDelta && (x.type !== 'income' || !delta))) throw Error('Invalid tax reserve adjustment.');
     const walletId=/^[a-f0-9]{64}$/.test(x.walletId||'')?x.walletId:'',walletRevision=/^[a-f0-9]{64}$/.test(x.walletRevision||'')?x.walletRevision:'';
-    // Tags and notes (roadmap #29): free-form tags across categories.
+    // Bank-alert import (roadmap #40): marks transactions saved from bank notifications.
+    const bank=x.bank===true;    // Tags and notes (roadmap #29): free-form tags across categories.
     const tags = Array.isArray(x.tags) ? [...new Set(x.tags.map(t => String(t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30)).filter(Boolean))].slice(0, 10).sort() : [];
     const note = String(x.note || '').trim().slice(0, 280);
     // Refund linking (roadmap #36): an income can point at the expense it refunds.
@@ -1694,7 +1695,7 @@
     if (typeof x.receipt === 'string' && x.receipt.length > 0 && x.receipt.length <= 2800000) {
       receipt = x.receipt.slice(0, 2800000);
     }
-    return {walletId,walletRevision,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, receipt, refundOf, reimbursable, reimbursed, untaxed};
+    return {walletId,walletRevision,bank,id:x.id, accountId:x.accountId||'', toAccountId:x.type==='transfer' ? x.toAccountId||'' : '', label:label(x.label), amount, date:x.date, type:x.type, category:label(x.category || (x.type === 'income' ? 'Income' : 'Other')), delta, taxDelta, tags, note, receipt, refundOf, reimbursable, reimbursed, untaxed};
   }
   // Quick-add for cash purchases (roadmap #10): minimal amount + category.
   // Two taps: enter amount, pick category. Defaults to today, cash account.
@@ -3357,7 +3358,7 @@
 
   function walletData(raw={}) {
     if(!raw || typeof raw!=='object')throw Error('Invalid Wallet settings.');
-    const clean=x=>{if(!x||!/^[a-f0-9]{64}$/.test(x.id)||!/^[a-f0-9]{64}$/.test(x.revision)||!Number.isFinite(x.postedAt)||x.postedAt<=0)throw Error('Invalid Wallet notification.');return {id:x.id,revision:x.revision,postedAt:x.postedAt,title:String(x.title||'').slice(0,2000),text:String(x.text||'').slice(0,2000),reason:String(x.reason||'').slice(0,200)};};
+    const clean=x=>{if(!x||!/^[a-f0-9]{64}$/.test(x.id)||!/^[a-f0-9]{64}$/.test(x.revision)||!Number.isFinite(x.postedAt)||x.postedAt<=0)throw Error('Invalid Wallet notification.');if(x.kind!==undefined&&x.kind!=='wallet'&&x.kind!=='bank')throw Error('Invalid Wallet notification.');return {id:x.id,revision:x.revision,kind:x.kind==='bank'?'bank':'wallet',source:String(x.source||'').slice(0,200),postedAt:x.postedAt,title:String(x.title||'').slice(0,2000),text:String(x.text||'').slice(0,2000),reason:String(x.reason||'').slice(0,200)};};
     const inbox=list(raw.inbox).map(clean);if(inbox.length>200)throw Error('Wallet review inbox is full.');
     const receipts=list(raw.receipts).map(x=>{if(!x||!/^[a-f0-9]{64}$/.test(x.id)||!/^[a-f0-9]{64}$/.test(x.revision))throw Error('Invalid Wallet receipt.');return {id:x.id,revision:x.revision};});
     return {accountId:typeof raw.accountId==='string'?raw.accountId:'',adjust:raw.adjust!==false,auto:raw.auto!==false,inbox,receipts};
@@ -3376,7 +3377,9 @@
     if(/\b(refund|refunded|reversed|reversal|declined|failed|cancelled|canceled|unsuccessful|pending|request|verification|verify|cashback|reward|offer|discount|save up to|balance|bill due|coupon|gift card)\b|[-−]\s*(?:US\$|USD\s*\$?|\$)|(?:US\$|USD\s*\$?|\$)\s*[-−]/i.test(text))return {...result,type:/\brefund(?:ed)?\b/i.test(text)?'income':'expense',reason:'This may be a refund, pending payment, failed purchase, or non-purchase notice.'};
     const amountPattern='(?:US\\$|USD\\s*\\$?|\\$)\\s*[0-9][0-9.,]*(?:\\s*USD)?';
     const explicit=new RegExp('(?:you\\s+)?(?:paid|spent|purchase(?:d)?(?:\\s+of)?|payment(?:\\s+of)?)?\\s*'+amountPattern+'\\s+(?:at|to)\\s+([^\\n]+)','i').exec(text);
-    if(explicit)result.label=explicit[1].replace(/\s+(?:with|using|on)\s+(?:your\s+)?(?:Visa|Mastercard|Amex|American Express|Discover|card)\b.*$/i,'').trim().replace(/[.!]$/,'');
+    // Bank alerts often phrase it as "a transaction of $X at MERCHANT was made
+    // on your card ending in 1234" — drop the trailing bank phrasing first.
+    if(explicit)result.label=explicit[1].replace(/\s+was\s+made\b.*$/i,'').replace(/\s+(?:with|using|on)\s+(?:your\s+)?(?:Visa|Mastercard|Amex|American Express|Discover|card)\b.*$/i,'').trim().replace(/[.!]$/,'');
     // A merchant title plus a currency-led card payment body is another common Wallet layout.
     else if(title && /[a-z]/i.test(title) && !/[$€£¥₹]|\b(?:google|wallet|pay|payment|purchase|transaction|notification|card)\b/i.test(title)
       && new RegExp('^(?:you\\s+(?:paid|spent)\\s+)?'+amountPattern+'(?:\\s|$)','i').test(body)
@@ -3403,6 +3406,9 @@
       else if(!state.accounts.some(a=>a.id===w.accountId))reason='Choose an account for this purchase.';
       else if(Date.now()-item.postedAt>7*86400000)reason='This notification is over a week old. Check its date and balance adjustment.';
       else if(!allowAuto||!w.auto)reason=reason||'Automatic insertion is off. Review this purchase.';
+      // Roadmap #40: bank alerts always need review — bank notification formats vary
+      // and the right account is ambiguous, so they never insert automatically.
+      if(item.kind==='bank')reason=(reason?reason+' ':'')+'Bank alert — confirm the account and merchant before saving.';
       if(w.receipts.length>=10000)break;
       if(parsed.safe&&!reason&&!state.demo) {
         try {saveTransaction(state,{id:'wallet-'+item.id,walletId:item.id,walletRevision:item.revision,label:parsed.label,amount:parsed.amount,type:'expense',date:parsed.date,accountId:w.accountId,category:'Other',adjust:w.adjust});w.receipts.push({id:item.id,revision:item.revision});added++;}
@@ -3419,7 +3425,7 @@
   function resolveWallet(state,id,input) {
     const w=state.wallet,item=w.inbox.find(x=>x.id===id);if(!item)throw Error('This notification is no longer pending.');
     if(w.receipts.length>=10000)throw Error('Wallet receipt history is full. Export your backup before clearing your plan.');
-    if(input){const old=state.transactions.find(t=>t.walletId===id);if(!validDate(input.date)||input.date>localDate())throw Error('Choose a valid transaction date.');if(!['expense','income'].includes(input.type))throw Error('Choose purchase or refund.');saveTransaction(state,{...input,id:old?old.id:'wallet-'+id,walletId:id,walletRevision:item.revision});}
+    if(input){const old=state.transactions.find(t=>t.walletId===id);if(!validDate(input.date)||input.date>localDate())throw Error('Choose a valid transaction date.');if(!['expense','income'].includes(input.type))throw Error('Choose purchase or refund.');saveTransaction(state,{...input,id:old?old.id:'wallet-'+id,walletId:id,walletRevision:item.revision,bank:item.kind==='bank'});}
     w.receipts.push({id:item.id,revision:item.revision});w.inbox=w.inbox.filter(x=>x.id!==id);
   }
 
@@ -3470,7 +3476,7 @@
         const category = existing ? existing.category : t.category;
         w.inbox = w.inbox.filter(x => x.id !== match.id);
         w.receipts.push({ id: match.id, revision: match.revision });
-        saveTransaction(state, { ...t, id: 'wallet-' + match.id.slice(0, 16), category, walletId: match.id, walletRevision: match.revision });
+        saveTransaction(state, { ...t, id: 'wallet-' + match.id.slice(0, 16), category, walletId: match.id, walletRevision: match.revision, bank: match.kind === 'bank' });
       } else {
         missed++;
         const id = csvInboxId(t);

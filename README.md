@@ -244,6 +244,10 @@ Proportional bands show recorded income flowing into spending groups and **Saved
 
 Groups below 3% of their side's total are combined into **Other**. The diagram shows up to five named income groups and six named expense groups; additional groups also join Other. An existing Other category joins the same bucket. Open **View exact amounts and Other details** to see every included group and cent. On phones, swipe the chart horizontally or use the stacked tables. This is a read-only view of recorded transactions; no new permissions, data collection, or backup schema changes.
 
+## New in 1.61: bank-alert notification capture
+
+Open **You → Wallet & bank import**, set **Bank alerts** to On, and save. Bank transaction alerts are captured on-device from an allowlisted set of bank apps (Chase, Bank of America, Wells Fargo, Citi, Capital One, U.S. Bank, Discover, PNC, Navy Federal, American Express — exact packages listed in PRIVACY.md) and share the Wallet import's inbox, deduplication, and CSV reconciliation. Bank alerts never insert automatically — each one waits in **Needs review** for your confirmation, since bank formats vary and the right account is ambiguous. Enabling Wallet capture does not enable bank alerts.
+
 ## New in 1.5: Google Wallet purchase import
 
 Open **You → Google Wallet purchase import**, choose the account and balance handling, and save. Then open Android notification access and enable **OddDough · Wallet purchases**. Access is off by default and must be granted by you. Android may show a restricted-settings prompt for sideloaded previews; see [Android's explanation](https://support.google.com/android/answer/12623953).

@@ -271,6 +271,7 @@ public class MainActivity extends Activity {
     public final class Bridge {
         @android.webkit.JavascriptInterface public String walletStatus() { return WalletNotifications.status(MainActivity.this, walletAccess()); }
         @android.webkit.JavascriptInterface public boolean walletEnable(boolean enabled) { return WalletNotifications.enable(MainActivity.this, enabled); }
+        @android.webkit.JavascriptInterface public boolean walletBankEnable(boolean enabled) { return WalletNotifications.bankEnable(MainActivity.this, enabled); }
         @android.webkit.JavascriptInterface public boolean walletAck(String json) { return WalletNotifications.acknowledge(MainActivity.this, json); }
         @android.webkit.JavascriptInterface public boolean walletReset() { return WalletNotifications.reset(MainActivity.this); }
         @android.webkit.JavascriptInterface public void walletSettings() {

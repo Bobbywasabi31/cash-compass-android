@@ -63,10 +63,10 @@ jobs:
       - name: Prepare verified APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/OddDough-1.60.1-preview.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/OddDough-1.60.1-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/OddDough-1.61.0-preview.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/OddDough-1.61.0-preview.apk
           cd dist
-          sha256sum OddDough-1.60.1-preview.apk > SHA256SUMS.txt
+          sha256sum OddDough-1.61.0-preview.apk > SHA256SUMS.txt
       - name: Save build and test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,4 +86,4 @@ jobs:
           tag="v1.60.1-preview.${GITHUB_RUN_NUMBER}"
           # Only the latest version's notes — keeps the releases page short
           awk '/^# /{if(++c>1) exit} {print}' RELEASE_NOTES.md > dist/NOTES.md
-          gh release create "$tag" dist/OddDough-1.60.1-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "OddDough 1.60.1 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md
+          gh release create "$tag" dist/OddDough-1.61.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "OddDough 1.61.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md

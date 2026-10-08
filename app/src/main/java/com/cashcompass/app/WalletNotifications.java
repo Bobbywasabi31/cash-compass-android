@@ -26,6 +26,24 @@ public class WalletNotifications extends NotificationListenerService {
             || ("com.google.android.gms".equals(source)
                 && ("Google Wallet".equalsIgnoreCase(attribution.trim()) || "Google Pay".equalsIgnoreCase(attribution.trim())));
     }
+    /**
+     * Bank-app allowlist for roadmap #40. Package names verified against Google Play
+     * 2026-10-07; only these exact packages are eligible, and only when the user
+     * turns bank alerts on separately from Wallet capture.
+     */
+    static final java.util.Set<String> BANK_SOURCES = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(java.util.Arrays.asList(
+        "com.chase.sig.android",              // Chase Mobile
+        "com.infonow.bofa",                   // Bank of America Mobile Banking
+        "com.wf.wellsfargomobile",            // Wells Fargo Mobile
+        "com.citi.citimobile",                // Citi Mobile
+        "com.konylabs.capitalone",            // Capital One Mobile
+        "com.usbank.mobilebanking",            // U.S. Bank Mobile Banking
+        "com.discoverfinancial.mobile",       // Discover Mobile
+        "com.pnc.ecommerce.mobile",           // PNC Mobile
+        "com.navyfederal.android",            // Navy Federal Credit Union
+        "com.americanexpress.android.acctsvcs.us" // Amex (US)
+    )));
+    static boolean isBankSource(String source) { return source != null && BANK_SOURCES.contains(source); }
     static String hash(String value) throws Exception {
         byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
         StringBuilder out = new StringBuilder();
@@ -36,13 +54,20 @@ public class WalletNotifications extends NotificationListenerService {
     // Deliberately do not replay all active notifications when access is first enabled.
     static synchronized void capture(Context c, StatusBarNotification sbn) {
         SharedPreferences p = prefs(c);
-        if (!p.getBoolean("enabled", false) || sbn == null) return;
+        if (sbn == null) return;
         String source = sbn.getPackageName();
-        if (!"com.google.android.apps.walletnfcrel".equals(source) && !"com.google.android.gms".equals(source)) return;
+        String kind;
+        if (isBankSource(source)) {
+            if (!p.getBoolean("bankEnabled", false)) return; // separate opt-in, off by default
+            kind = "bank";
+        } else if ("com.google.android.apps.walletnfcrel".equals(source) || "com.google.android.gms".equals(source)) {
+            if (!p.getBoolean("enabled", false)) return;
+            kind = "wallet";
+        } else return;
         Notification n = sbn.getNotification();
         if (n == null || n.extras == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
         try {
-            if (!accepts(source, text(n.extras, Notification.EXTRA_SUB_TEXT))) return;
+            if ("wallet".equals(kind) && !accepts(source, text(n.extras, Notification.EXTRA_SUB_TEXT))) return;
             if (sbn.getPostTime() < p.getLong("since", Long.MAX_VALUE)) return;
             String title = text(n.extras, Notification.EXTRA_TITLE);
             String body = text(n.extras, Notification.EXTRA_BIG_TEXT);
@@ -77,7 +102,7 @@ public class WalletNotifications extends NotificationListenerService {
                 p.edit().putInt("dropped", dropped + 1).commit();
                 return; // Never overwrite an unreviewed purchase when the inbox is full.
             }
-            next.put(new JSONObject().put("id", id).put("revision", revision).put("source", source)
+            next.put(new JSONObject().put("id", id).put("revision", revision).put("kind", kind).put("source", source)
                 .put("title", title).put("text", body).put("postedAt", stamp));
             p.edit().putString("queue", next.toString()).putInt("dropped", dropped).putBoolean("error", false).commit();
         } catch (Exception ignored) {
@@ -88,6 +113,7 @@ public class WalletNotifications extends NotificationListenerService {
         SharedPreferences p = prefs(c);
         try {
             return new JSONObject().put("enabled", p.getBoolean("enabled", false)).put("granted", granted)
+                .put("bankEnabled", p.getBoolean("bankEnabled", false))
                 .put("dropped", p.getInt("dropped", 0)).put("error", p.getBoolean("error", false))
                 .put("queue", new JSONArray(p.getString("queue", "[]"))).toString();
         } catch (Exception e) { return "{\"enabled\":false,\"error\":true,\"queue\":[]}"; }
@@ -96,6 +122,13 @@ public class WalletNotifications extends NotificationListenerService {
         SharedPreferences p = prefs(c);
         SharedPreferences.Editor e = p.edit().putBoolean("enabled", enabled);
         if (enabled && !p.getBoolean("enabled", false)) e.putLong("since", System.currentTimeMillis());
+        return e.commit();
+    }
+    /** Bank alerts are a separate opt-in so enabling Wallet capture never silently widens it. */
+    static synchronized boolean bankEnable(Context c, boolean enabled) {
+        SharedPreferences p = prefs(c);
+        SharedPreferences.Editor e = p.edit().putBoolean("bankEnabled", enabled);
+        if (enabled && !p.getBoolean("bankEnabled", false) && !p.contains("since")) e.putLong("since", System.currentTimeMillis());
         return e.commit();
     }
     static synchronized boolean acknowledge(Context c, String json) {
