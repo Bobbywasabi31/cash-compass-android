@@ -36,7 +36,7 @@ final class SecureState {
 
     private static EncryptedFile encryptedFile(Context ctx, String name) throws Exception {
         File f = new File(ctx.getFilesDir(), name);
-        return new EncryptedFile.Builder(ctx, f, masterKeyAlias(ctx),
+        return new EncryptedFile.Builder(f, ctx, masterKeyAlias(ctx),
                 EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB).build();
     }
 
