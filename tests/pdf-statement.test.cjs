@@ -128,3 +128,37 @@ test('previewRows still validates CSV-shaped rows exactly like previewCSV did',(
   assert.equal(rows[0].transaction.amount,csv[0].transaction.amount);
   assert.throws(()=>C.previewRows(s,[{rowTag:'CSV row',rowNum:2,colCount:2,headerLen:3,date:'2026-09-18',label:'Shop',amountText:'-5',type:'expense'}],'cash'),/Column count/);
 });
+
+test('statement parser handles bare MM/DD dates with statement-year inference',()=>{
+  const rows=C.parseStatementLines([
+    'Statement Period 09/01/2026 - 09/30/2026',
+    '09/01 POS Withdrawal HIDIVE SVC -7.99 2,014.55',
+    '09/09 External Deposit SDUSD PAYROLL 1,146.28 2,037.02',
+  ],{today:'2026-10-07'});
+  assert.equal(rows.length,2);
+  assert.deepEqual(rows.map(r=>r.date),['2026-09-01','2026-09-09']);
+  assert.equal(rows[0].label,'POS Withdrawal HIDIVE SVC');
+  assert.equal(rows[0].type,'expense');
+  assert.equal(rows[0].amountText,'-7.99');
+  assert.equal(rows[1].type,'income');
+  assert.equal(rows[1].amountText,'1146.28');
+});
+
+test('withdrawal/deposit prefix beats the sign convention',()=>{
+  const rows=C.parseStatementLines([
+    '09/06 Foreign ATM Withdrawal Fee Visa fee -2.50 1,900.00',
+    '09/23 POS Deposit AMAZON MKTPLACE PMTS 25.00 1,800.00',
+    '10/05/2026 Card Payment -50.00',
+    '10/05/2026 Store G 12.50',
+  ],{today:'2026-10-07',year:2026});
+  assert.deepEqual(rows.map(r=>r.type),['expense','income','income','expense']);
+});
+
+test('groupTextItems keeps 1.7pt-apart lines separate',()=>{
+  const items=[
+    {str:'09/25',transform:[1,0,0,1,50,369.36]},
+    {str:'Store',transform:[1,0,0,1,90,369.36]},
+    {str:'eChecking 120440698',transform:[1,0,0,1,50,367.68]},
+  ];
+  assert.deepEqual(C.groupTextItems(items),['09/25 Store','eChecking 120440698']);
+});

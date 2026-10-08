@@ -1,3 +1,7 @@
+# 1.60.1
+
+- PDF import fix: statements with year-less dates (e.g. credit-union "09/01" format) now import — dates were silently skipped before. Withdrawal/Deposit prefixes in descriptions now set the transaction direction (checking-account debits shown as negative are expenses, not income). Also fixed text lines merging when a statement sets headers very close to transaction rows.
+
 # 1.60.0
 
 - PDF bank-statement import: the Import/export dialog has a new **Choose PDF statement** button next to Choose CSV file. Pick a text-based bank statement PDF and its transactions are detected automatically, then shown in the same review preview as CSV imports (duplicates, transfer pairs, inbox reconciliation) before anything is saved. Everything is parsed on-device with a bundled PDF reader — the statement never leaves your phone. Guardrails: 10 MB / 50-page limits, friendly errors for password-protected or scanned (image-only) PDFs.

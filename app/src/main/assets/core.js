@@ -3022,7 +3022,10 @@
     const pts=(Array.isArray(items)?items:[]).filter(it=>it&&typeof it.str==='string'&&it.str.trim()&&it.transform&&it.transform.length>=6)
       .map(it=>({x:it.transform[4],y:it.transform[5],str:it.str}));
     pts.sort((a,b)=>b.y-a.y||a.x-b.x);
-    const TOL=3,lines=[];
+    // 1.5pt: keeps amount columns glued to their row and tolerates renderer
+    // y-wobble, but no longer merges visually distinct lines — some statements
+    // (e.g. credit-union checking) set headers ~1.7pt below transaction rows.
+    const TOL=1.5,lines=[];
     for(const p of pts){
       const last=lines[lines.length-1];
       if(last&&Math.abs(last.y-p.y)<=TOL)last.items.push(p);
@@ -3050,6 +3053,11 @@
     if(m){const mon=STMT_MONTHS[m[2].toLowerCase().slice(0,3)];if(mon)return{mm:mon,dd:+m[1],yyyy:m[3]?+stmtNormYear(m[3]):null,end:m[0].length};}
     m=line.match(new RegExp('^(\\d{1,2})-'+STMT_MON_RE+'-(\\d{2}|\\d{4})(?![\\d])','i'));
     if(m){const mon=STMT_MONTHS[m[2].toLowerCase().slice(0,3)];if(mon)return{mm:mon,dd:+m[1],yyyy:+stmtNormYear(m[3]),end:m[0].length};}
+    // Bare MM/DD (or MM-DD, MM.DD) with no year — common on checking-account
+    // statements ("09/01 POS Withdrawal ..."); the statement year applies.
+    // Tried last so full dates carrying a year always win.
+    m=line.match(/^(\d{1,2})[\/\-.](\d{1,2})(?![\d\/\-.])/);
+    if(m)return{mm:+m[1],dd:+m[2],yyyy:null,end:m[0].length};
     return null;
   }
   // First amount-like token wins (later ones are usually running balances).
@@ -3106,9 +3114,17 @@
         const iso2=stmtDateIso(+iso.slice(0,4)-1,d.mm,d.dd);
         if(iso2)iso=iso2;
       }
+      // Direction: a Withdrawal/Deposit prefix in the description (checking-account
+      // statements print "POS Withdrawal", "External Deposit", ...) beats the sign
+      // convention — e.g. debits shown as negative are still money out. Without a
+      // prefix, keep the card-statement convention (negative = payment/credit).
+      let type;
+      if(/\bwithdrawals?\b/i.test(label))type='expense';
+      else if(/\bdeposits?\b/i.test(label))type='income';
+      else type=section==='income'?'income':(amt.negative?'income':'expense');
       out.push({rowTag:'Statement row',rowNum:out.length+1,date:iso,label:label.slice(0,120),
         amountText:(amt.negative?'-':'')+amt.value.toFixed(2),
-        type:section==='income'?'income':(amt.negative?'income':'expense'),
+        type:type,
         category:'',accountName:'',toAccountName:''});
     }
     return out;
