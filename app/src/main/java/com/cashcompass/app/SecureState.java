@@ -2,7 +2,7 @@ package com.cashcompass.app;
 
 import android.content.Context;
 import androidx.security.crypto.EncryptedFile;
-import androidx.security.crypto.MasterKey;
+import androidx.security.crypto.MasterKeys;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
@@ -27,15 +27,16 @@ final class SecureState {
 
     private SecureState() {}
 
-    private static MasterKey masterKey(Context ctx) throws Exception {
-        return new MasterKey.Builder(ctx)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build();
+    // security-crypto 1.0.0 (stable): MasterKeys mints an AES-256-GCM key in the
+    // Android Keystore; EncryptedFile takes the key alias. (The singular
+    // MasterKey builder only exists in 1.1.0-alpha.)
+    private static String masterKeyAlias(Context ctx) throws Exception {
+        return MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
     }
 
     private static EncryptedFile encryptedFile(Context ctx, String name) throws Exception {
         File f = new File(ctx.getFilesDir(), name);
-        return new EncryptedFile.Builder(ctx, f, masterKey(ctx),
+        return new EncryptedFile.Builder(ctx, f, masterKeyAlias(ctx),
                 EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB).build();
     }
 
@@ -82,7 +83,7 @@ final class SecureState {
     /** Reports whether the vault is usable; the JS side falls back to WebView storage when not. */
     static String status(Context ctx) {
         try {
-            masterKey(ctx);
+            masterKeyAlias(ctx);
             boolean sealed = new File(ctx.getFilesDir(), STATE_FILE).exists();
             return "{\"ok\":true,\"encrypted\":true,\"sealed\":" + sealed + "}";
         } catch (Exception e) {
