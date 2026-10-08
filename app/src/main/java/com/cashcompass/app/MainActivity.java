@@ -349,6 +349,26 @@ public class MainActivity extends Activity {
             });
             return true;
         }
+        @android.webkit.JavascriptInterface public String secureVaultStatus() {
+            // At-rest encryption (roadmap #8 remainder): the JS side stores the
+            // live plan in this EncryptedFile vault when ok==true, and falls
+            // back to WebView localStorage otherwise.
+            return SecureState.status(MainActivity.this);
+        }
+        @android.webkit.JavascriptInterface public String secureStateLoad() {
+            String s = SecureState.loadState(MainActivity.this);
+            return s == null ? "null" : s;
+        }
+        @android.webkit.JavascriptInterface public boolean secureStateSave(String json) {
+            return SecureState.saveState(MainActivity.this, json);
+        }
+        @android.webkit.JavascriptInterface public String secureAutoLoad() {
+            String s = SecureState.loadAutoBackups(MainActivity.this);
+            return s == null ? "null" : s;
+        }
+        @android.webkit.JavascriptInterface public boolean secureAutoSave(String json) {
+            return SecureState.saveAutoBackups(MainActivity.this, json);
+        }
         @android.webkit.JavascriptInterface public void syncWidgets(String json) {
             // Home-screen widgets (roadmap #12, #85): validated, stored, and
             // rendered by HomeWidgets. Silent on failure — the widgets keep

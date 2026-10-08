@@ -1,8 +1,14 @@
 # Privacy
 
-OddDough 1.5.1 preview stores the plan you enter in this app's local WebView storage. It has no bank linking, online account, analytics, advertising, AI API, or server connection. The Android app does not request internet permission. Its HTTPS asset origin is handled inside the app using bundled files; it is not an external website.
+OddDough 1.6.2 preview stores the plan you enter encrypted on this device (see At-rest encryption below). It has no bank linking, online account, analytics, advertising, AI API, or server connection. The Android app does not request internet permission. Its HTTPS asset origin is handled inside the app using bundled files; it is not an external website.
 
 Backup text may contain personal financial details. It stays in the app until you copy it and choose where to save or share it. Clearing app storage or uninstalling removes your plan. Android backup is disabled. Your device's own security and clipboard settings apply to local data.
+
+## At-rest encryption
+
+Your plan and the automatic backups are stored in an encrypted vault on the device: AES-256-GCM via Jetpack Security, with the key held by the Android Keystore (hardware-backed where the device supports it). No passphrase is needed — the operating system guards the key, so reading the app's data files directly (for example from a lost or stolen phone) yields only ciphertext. The first launch after this update migrates your existing plan into the vault and wipes the old plaintext copy; a timestamped wrapper picks the newest copy if both ever exist, so a failed migration can never silently restore stale data. Passphrase-encrypted manual backups (AES-256-GCM, PBKDF2 key derivation) remain available for copies you take off-device.
+
+Not covered: the home-screen widget payload and reminder/weekly/updater preferences (small amounts and settings in private SharedPreferences), theme/error-log/AI-coach-key entries in WebView storage, and the pre-update backup files written to app-private external storage before an in-app update (plaintext JSON, kept only until the update is verified). Those never leave the phone either — they are simply not encrypted at rest yet.
 
 ## CSV, PDF statements, and reminders
 CSV import/export uses Android’s system file picker. Only files you select are read or written. Your chosen storage provider controls exported files. PDF bank-statement import reads the file you pick entirely on-device with a bundled PDF parser — the PDF and its contents never leave your phone, and no network request is made. Statement parsing is heuristic, so every detected transaction is shown in the import preview for your review before anything is saved. Optional reminders store bill dates locally, request Android notification permission, and display generic text without amounts or merchant names. The optional weekly recap stores its precomputed summary text on-device (it includes spending and safe-to-spend amounts) and posts it as a private notification on Sundays. No bank connection, analytics, or server upload is added.

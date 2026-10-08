@@ -10,8 +10,8 @@ android {
         applicationId = "com.cashcompass.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 66
-        versionName = "1.61.0"
+        versionCode = 67
+        versionName = "1.62.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -30,6 +30,8 @@ android {
 dependencies {
     // On-device receipt OCR (thin client; model via Play Services, keeps APK small)
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // At-rest encryption of the live plan (Jetpack Security EncryptedFile, key in Android Keystore)
+    implementation("androidx.security:security-crypto:1.0.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")

@@ -1,3 +1,7 @@
+# 1.62.0
+
+- At-rest encryption (#8 remainder): your plan and automatic backups are now stored in an encrypted vault on the device — AES-256-GCM via Jetpack Security, with the key held by the Android Keystore (hardware-backed where supported). No passphrase needed; the OS guards the key, so the app's data files are ciphertext to anything reading them directly. First launch migrates your existing plan into the vault and wipes the old plaintext copy, with a timestamped wrapper that always picks the newest copy so a failed migration can never restore stale data. You → Your data now notes the encryption status. Manual passphrase-encrypted backups are unchanged.
+
 # 1.61.0
 
 - Bank-app notification capture (#40): opt-in under You → Wallet & bank import. Transaction alerts from an allowlisted set of bank apps (Chase, Bank of America, Wells Fargo, Citi, Capital One, U.S. Bank, Discover, PNC, Navy Federal, American Express) are captured on-device and share the Wallet import's review inbox, deduplication, and CSV reconciliation. Bank alerts always need your review — they never insert automatically. Enabling Wallet capture does not enable bank alerts; nothing is uploaded. PRIVACY.md updated.

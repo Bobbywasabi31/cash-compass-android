@@ -1,38 +1,129 @@
 /* Offline interface. The coach explains calculations; it is not a connected AI model. */
 'use strict';
-const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.60.1';
+const C = CashCore, STORE = 'cash-compass-v2', APP_VERSION = '1.62.0';
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const uid = () => 'item-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
 let tab = 'home', dialog = null, hours = 12, debtPayment = '', loanPrincipal = '', loanRate = '', loanPayment = '', loanExtra = '', dripYield = '2', dripGrowth = '7', dripYears = '10', dripMonthly = '', slipDays = 0, runwayIncome = '', runwaySpending = '', emergencyMonths = '', paycheckHours = '', paycheckOvertime = '', paycheckHoliday = '', smoothingTarget = '', splitCount = 2, reply = '', storageError = '', storageBlocked = false, toastTimer;
+// At-rest encryption (roadmap #8 remainder): on Android the live plan is kept
+// in an EncryptedFile vault (AES-256-GCM, key in the Android Keystore); the
+// browser/dev build keeps WebView localStorage. First run migrates plaintext
+// into the vault and wipes it. Wrapped payloads carry an update timestamp so a
+// stale copy (failed migration, downgrade/upgrade cycle) never wins over newer
+// data; the plaintext copy is removed once the vault holds the canonical plan.
+const LEGACY_V1 = 'cash-compass-v1', META_KEY = STORE + '-ts';
+const AUTO_KEY = 'cash-compass-auto', AUTO_SLOTS = 5;
+let useVault = false, vaultDegraded = false;
+function vaultStatus() {
+  try {
+    if (typeof NativeBridge === 'undefined') return null;
+    return JSON.parse(NativeBridge.secureVaultStatus() || '{}');
+  } catch (e) { return null; }
+}
+function vaultLoad(kind) {
+  try {
+    if (typeof NativeBridge === 'undefined') return null;
+    const s = kind === 'auto' ? NativeBridge.secureAutoLoad() : NativeBridge.secureStateLoad();
+    return (typeof s === 'string' && s !== 'null' && s) ? s : null;
+  } catch (e) { return null; }
+}
+function vaultSave(kind, json) {
+  try {
+    if (typeof NativeBridge === 'undefined') return false;
+    return !!(kind === 'auto' ? NativeBridge.secureAutoSave(json) : NativeBridge.secureStateSave(json));
+  } catch (e) { return false; }
+}
+function readRaw() {
+  if (useVault && !vaultDegraded) { const u = C.unwrapVault(vaultLoad('state')); if (u && u.data) return u.data; }
+  return localStorage.getItem(STORE) || localStorage.getItem(LEGACY_V1);
+}
+function writeRaw(json) {
+  if (useVault && !vaultDegraded) {
+    if (vaultSave('state', C.wrapVault(json))) return;
+    vaultDegraded = true; // fall through to plaintext; the boot recency check recovers
+  }
+  localStorage.setItem(STORE, json);
+  try { localStorage.setItem(META_KEY, JSON.stringify({ updated: Date.now() })); } catch (e) {}
+}
+function clearPlaintextState() {
+  [STORE, LEGACY_V1, META_KEY].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+}
 let state = C.blank();
 try {
-  const stored = localStorage.getItem(STORE) || localStorage.getItem('cash-compass-v1');
-  if (stored) state = C.normalize(JSON.parse(stored));
+  const st = vaultStatus();
+  useVault = !!(st && st.ok && st.encrypted);
+  const legacy = localStorage.getItem(STORE) || localStorage.getItem(LEGACY_V1);
+  let legacyTs = 0;
+  try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}'); if (m && typeof m.updated === 'number') legacyTs = m.updated; } catch (e) {}
+  const plan = C.vaultMigrationPlan(useVault ? vaultLoad('state') : null, legacy, legacyTs, useVault);
+  if (plan.payload) state = C.normalize(JSON.parse(plan.payload));
+  if (plan.action === 'migrate' && useVault) {
+    if (vaultSave('state', C.wrapVault(plan.payload))) { migrateAutoSlotsToVault(); clearPlaintextState(); }
+    else useVault = false; // vault unusable this session; the plaintext copy stays canonical
+  } else if (plan.action === 'use-secure' && legacy) {
+    clearPlaintextState(); // stale pre-migration copy; the vault is canonical
+  }
 } catch (e) { storageError = 'Saved data could not be read. Your original data has been kept. Restore a valid backup from You to continue.'; storageBlocked = true; }
 C.ensureAccounts(state);
 const app = document.getElementById('app');
-// Automatic backups + data-loss guards (roadmap #6, #9): rotating slots in
-// localStorage, written before destructive actions and once daily. Never
-// throws — a failed backup must not block the action it guards.
-const AUTO_KEY = 'cash-compass-auto', AUTO_SLOTS = 5;
+// Automatic backups + data-loss guards (roadmap #6, #9): rotating slots,
+// written before destructive actions and once daily. Encrypted in the vault on
+// Android (see the storage shim above), legacy localStorage slots otherwise.
+// Never throws — a failed backup must not block the action it guards.
 let lastAutoCheck = 0;
-function autoBackups() {
+function legacyAutoMeta() {
   try {
     const meta = JSON.parse(localStorage.getItem(AUTO_KEY + '-meta') || '{"slots":[]}');
-    return Array.isArray(meta.slots) ? meta.slots : [];
+    return Array.isArray(meta.slots) ? meta.slots.filter(s => s && typeof s.id === 'string') : [];
   } catch (e) { return []; }
+}
+// Automatic-backup slot store: one encrypted document in the vault on Android,
+// legacy per-slot localStorage keys otherwise (and as the best-effort fallback
+// if a vault write fails — autoBackup never throws).
+function autoDocRead() {
+  if (useVault && !vaultDegraded) {
+    const d = C.parseAutoSlots(vaultLoad('auto'));
+    if (d.meta.length) return { doc: d, vault: true };
+  }
+  const meta = legacyAutoMeta();
+  const payloads = {};
+  meta.forEach(s => { try { const p = localStorage.getItem(AUTO_KEY + '-' + s.id); if (typeof p === 'string') payloads[s.id] = p; } catch (e) {} });
+  return { doc: { meta, payloads }, vault: false };
+}
+function autoDocWrite(doc) {
+  if (useVault && !vaultDegraded && vaultSave('auto', C.serializeAutoSlots(doc))) return;
+  try {
+    localStorage.setItem(AUTO_KEY + '-meta', JSON.stringify({ slots: doc.meta }));
+    doc.meta.forEach(s => { if (typeof doc.payloads[s.id] === 'string') localStorage.setItem(AUTO_KEY + '-' + s.id, doc.payloads[s.id]); });
+  } catch (e) {}
+}
+function migrateAutoSlotsToVault() {
+  try {
+    const meta = legacyAutoMeta();
+    if (!meta.length) return;
+    const payloads = {};
+    meta.forEach(s => { try { const p = localStorage.getItem(AUTO_KEY + '-' + s.id); if (typeof p === 'string') payloads[s.id] = p; } catch (e) {} });
+    const doc = C.parseAutoSlots(C.serializeAutoSlots({ meta: meta.slice(0, AUTO_SLOTS), payloads }));
+    if (vaultSave('auto', C.serializeAutoSlots(doc))) {
+      try { localStorage.removeItem(AUTO_KEY + '-meta'); } catch (e) {}
+      meta.forEach(s => { try { localStorage.removeItem(AUTO_KEY + '-' + s.id); } catch (e) {} });
+    }
+  } catch (e) {}
+}
+function autoBackups() {
+  try { return autoDocRead().doc.meta; }
+  catch (e) { return []; }
 }
 function autoBackup(reason) {
   try {
-    const data = localStorage.getItem(STORE);
+    const data = readRaw();
     if (!data) return;
-    const slots = autoBackups();
-    if (slots.length >= AUTO_SLOTS) { try { localStorage.removeItem(AUTO_KEY + '-' + slots[slots.length - 1].id); } catch (e) {} }
+    const { doc } = autoDocRead();
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    localStorage.setItem(AUTO_KEY + '-' + id, data);
-    localStorage.setItem(AUTO_KEY + '-meta', JSON.stringify({ slots: [{ id, when: new Date().toISOString(), reason }, ...slots].slice(0, AUTO_SLOTS) }));
+    const res = C.autoSlotWrite(doc, id, data, new Date().toISOString(), reason, AUTO_SLOTS);
+    autoDocWrite(res.doc);
+    res.evicted.forEach(eid => { try { localStorage.removeItem(AUTO_KEY + '-' + eid); } catch (e) {} });
   } catch (e) {}
 }
 function maybeDailyBackup() {
@@ -79,7 +170,7 @@ function storedDataIntact() {
   // Lightweight integrity check after an update: STORE must exist, parse, and
   // look like a plan (profile object present).
   try {
-    const raw = localStorage.getItem(STORE);
+    const raw = readRaw();
     if (!raw) return { intact: false, transactions: 0 };
     const s = JSON.parse(raw);
     const tx = Array.isArray(s.transactions) ? s.transactions.length : 0;
@@ -159,7 +250,7 @@ function checkPendingUpdate() {
 function persist(next, recovery = false) {
   if (storageBlocked && !recovery) throw Error(storageError);
   C.ensureAccounts(next); C.syncBalance(next); C.snapshot(next);
-  try { localStorage.setItem(STORE, JSON.stringify(next)); }
+  try { writeRaw(JSON.stringify(next)); }
   catch (e) { throw Error('Could not save to this device. No changes were applied. Copy your backup from You before closing.'); }
   state = next; storageError = ''; storageBlocked = false; syncReminders(); syncWeekly(); syncWidgets();
   maybeDailyBackup();
@@ -305,7 +396,7 @@ function profile() {
   const p = state.profile;
   return header('Make it yours.', 'Update your cash whenever you spend or receive money.') + `<section class="card profile-card"><form id="profileForm" class="form-grid">${field('name', 'Your name', p.name, 'text', 'maxlength="80"')}${amountField('balance', 'Net account balance (edit accounts separately)', p.balance, -1000000000).replace('<input','<input readonly')}${amountField('buffer', 'Everyday safety buffer', p.buffer)}${amountField('taxHeld', 'Taxes already reserved within that cash', p.taxHeld)}${amountField('hourlyRate', 'Gross hourly rate for scenarios', p.hourlyRate)}${field('taxRate', 'Your chosen tax / scenario deduction (%)', p.taxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Enter take-home income after payroll deductions. For gross freelance income, this percentage reserves tax. For hourly scenarios, use your estimated deduction rate.</p>${field('sideTaxRate', 'Side-income tax set-aside rate (%)', p.sideTaxRate == null ? 25 : p.sideTaxRate, 'number', 'min="0" max="100" step="0.01"')}<p class="small">Untaxed freelance/gig income is tracked separately in Reports; this rate sets the quarterly set-aside target.</p><label class="check-label"><input type="checkbox" name="taxReminder"${p.taxReminder ? ' checked' : ''}> Remind me about quarterly estimated-tax deadlines</label><button class="primary">Save settings</button></form></section>
     <section class="section card profile-card"><h2 class="section-title">More tools</h2><p><button class="primary" data-tab="wallet">Wallet & bank import</button></p><div class="row-actions"><button data-tab="accounts">Accounts</button><button data-tab="reports">Reports</button><button data-action="csv">Import / export CSV</button><button data-action="update-check">Check for updates</button><button data-tab="goals">Savings goals</button><button data-tab="coach">Cash-flow coach</button></div></section><section class="section card profile-card"><h2 class="section-title">Appearance</h2><form id="themeForm" class="form-grid">${selectField('theme','Theme',localStorage.getItem('cc-theme')||'system',[['system','System'],['light','Light'],['dark','Dark'],['high-contrast','High contrast']])}<button class="primary">Save theme</button></form></section>${errorLogSection()}<section class="section card profile-card"><h2 class="section-title">Connected AI coach (optional)</h2><p class="small">Bring your own API key for a connected AI coach. Off by default. Only summarized totals are sent — never individual transactions. Your key is stored only on this device.</p><form id="aiCoachForm" class="form-grid">${field('aiKey','API key',localStorage.getItem('cc-ai-key')||'','password','maxlength="200"').replace(' required','')}${selectField('aiEnabled','Enable connected coach',localStorage.getItem('cc-ai-enabled')==='1'?'yes':'no',[['no','Off'],['yes','On']])}<button class="primary">Save</button></form></section><section class="section card profile-card"><h2 class="section-title">Reminders</h2><p class="small">Daily reminders at about 9 AM for bills due within three days or overdue. Android may delay delivery during battery saving. No amounts appear on the lock screen.</p><button class="secondary" data-action="reminders">${state.reminders ? 'Turn off reminders' : 'Enable phone reminders'}</button><p class="small">${hasNative() ? (NativeBridge.notificationsAllowed() ? 'Notifications allowed by Android.' : 'Android notification permission is off.') : 'Phone reminders are available in the Android app.'}</p><p class="small">A Sunday recap at about 9 AM: last week's spending, safe-to-spend, and bills due in the next 7 days.</p><button class="secondary" data-action="weekly">${state.weeklySummary ? 'Turn off weekly recap' : 'Enable weekly recap'}</button></section>${appLockSection()}
-    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button class="quiet" data-action="export-all">Export all data</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">OddDough ${APP_VERSION} preview · USD</p></section>${autoBackupSection()}`;
+    <section class="section card profile-card"><h2 class="section-title">Your data</h2><p class="small">Stored only on this device${useVault ? ', encrypted at rest (AES-256-GCM, key guarded by the Android Keystore)' : ''}. Clearing or replacing the plan also pauses Wallet capture and clears its pending native queue. Uninstalling or clearing app data removes your plan. Copy a backup first.</p><p class="small">Merchant memory: ${Object.keys(state.merchantMemory || {}).length} merchant(s) remembered to pre-fill category and account.</p><div class="row-actions"><button data-action="backup">Backup / restore</button><button class="quiet" data-action="export-all">Export all data</button><button data-action="clear-memory">Clear merchant memory</button><button data-action="fresh">Clear plan</button><button data-action="demo">Load sample plan</button></div><p class="small">OddDough ${APP_VERSION} preview · USD</p></section>${autoBackupSection()}`;
 }
 function modal() {
   if (!dialog) return '';
@@ -606,7 +697,7 @@ if(b.dataset.action==='csv-import' && csvPreview){const keep=app.querySelector('
       if(!updateInfo||!updateInfo.apkUrl){flash('No update file found for this release.');return;}
       // PRE-UPDATE BACKUP — Alex's hard requirement: never lose user data.
       // The backup lands in app-specific external storage (survives updates).
-      let res;try{res=JSON.parse(NativeBridge.writeUpdateBackup(localStorage.getItem(STORE)||JSON.stringify(state),updateInfo.tag));}catch(e){res=null;}
+      let res;try{res=JSON.parse(NativeBridge.writeUpdateBackup(readRaw()||JSON.stringify(state),updateInfo.tag));}catch(e){res=null;}
       if(!res||!res.ok){dialog.updateState='error';dialog.updateError=(res&&res.error)||'Backup failed.';render();return;}
       let dl;try{dl=JSON.parse(NativeBridge.startUpdateDownload(updateInfo.apkUrl));}catch(e){dl=null;}
       if(!dl||!dl.ok){dialog.updateState='error';dialog.updateError=(dl&&dl.error)||'Download failed.';render();return;}
@@ -663,7 +754,7 @@ if(b.dataset.action==='csv-import' && csvPreview){const keep=app.querySelector('
       else if (dialog.mode === 'remove') update(next => { if(dialog.kind==='accounts'){C.removeAccount(next,dialog.item.id);return;} if (dialog.kind === 'transactions') { C.removeTransaction(next,dialog.item.id); return; } next[dialog.kind] = next[dialog.kind].filter(x => x.id !== dialog.item.id); });
       else if (dialog.mode === 'fresh') { autoBackup('before clear'); pauseWallet(); persist(C.blank()); pauseWallet(true); tab = 'profile'; }
       else if (dialog.mode === 'demo') { autoBackup('before sample data'); pauseWallet();persist(C.demo());pauseWallet(true);}
-      else if (dialog.mode === 'restore-auto') { const raw = localStorage.getItem(AUTO_KEY + '-' + dialog.id); if (!raw) throw Error('Automatic backup not found.'); autoBackup('before auto-restore'); pauseWallet(); persist(C.normalize(JSON.parse(raw)), true); pauseWallet(true); tab = 'profile'; }
+      else if (dialog.mode === 'restore-auto') { const raw = C.autoSlotRead(autoDocRead().doc, dialog.id); if (!raw) throw Error('Automatic backup not found.'); autoBackup('before auto-restore'); pauseWallet(); persist(C.normalize(JSON.parse(raw)), true); pauseWallet(true); tab = 'profile'; }
       else if (dialog.mode === 'clear-memory') { update(next => C.clearMerchantMemory(next)); }
       dialog = null; reply = ''; flash('Plan saved');
     } else return;

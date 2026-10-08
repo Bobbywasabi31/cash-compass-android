@@ -1699,8 +1699,11 @@
   }
   // Quick-add for cash purchases (roadmap #10): minimal amount + category.
   // Two taps: enter amount, pick category. Defaults to today, cash account.
-  // Passphrase-encrypted backups (roadmap #8, partial): AES-GCM via Web Crypto.
-  // Native at-rest encryption still needs Android-side work.
+  // Passphrase-encrypted backups (roadmap #8): AES-GCM via Web Crypto.
+  // At-rest encryption of the live plan is native-side (see below): the plan
+  // JSON lives in an EncryptedFile vault (AES-256-GCM, key in the Android
+  // Keystore). These helpers wrap the vault payload, decide the boot-time
+  // storage source, and manage the automatic-backup slot document.
   async function encryptBackup(plaintext, passphrase) {
     if (!passphrase || passphrase.length < 8) throw Error('Passphrase must be at least 8 characters.');
     const enc = new TextEncoder();
@@ -1725,6 +1728,81 @@
       const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
       return dec.decode(pt);
     } catch(e) { throw Error('Wrong passphrase or corrupted backup.'); }
+  }
+  // ---- At-rest encrypted vault (roadmap #8 remainder) ----
+  const VAULT_FORMAT = 'odddough-vault';
+  function wrapVault(json, updated) {
+    return JSON.stringify({ format: VAULT_FORMAT, version: 1,
+      updated: typeof updated === 'number' ? updated : Date.now(), data: String(json) });
+  }
+  function unwrapVault(wrapped) {
+    if (typeof wrapped !== 'string' || !wrapped) return null;
+    try {
+      const w = JSON.parse(wrapped);
+      if (w && w.format === VAULT_FORMAT && typeof w.data === 'string')
+        return { data: w.data, updated: typeof w.updated === 'number' ? w.updated : 0 };
+    } catch (e) {}
+    return { data: wrapped, updated: 0 }; // lenient: treat as raw plan JSON
+  }
+  // Decides the boot-time storage source. Actions:
+  //  use-secure (vault is canonical), migrate (plaintext is newer or the vault
+  //  is empty — seal it then wipe plaintext), use-legacy (no vault available),
+  //  none (nothing stored anywhere).
+  function vaultMigrationPlan(secureWrapped, legacyJson, legacyUpdated, vaultOk) {
+    const secure = unwrapVault(secureWrapped);
+    const hasSecure = !!(secure && secure.data);
+    const hasLegacy = typeof legacyJson === 'string' && legacyJson.length > 0;
+    const legacyTs = typeof legacyUpdated === 'number' ? legacyUpdated : 0;
+    if (vaultOk && hasSecure && hasLegacy)
+      return secure.updated >= legacyTs
+        ? { action: 'use-secure', payload: secure.data }
+        : { action: 'migrate', payload: legacyJson };
+    if (vaultOk && hasSecure) return { action: 'use-secure', payload: secure.data };
+    if (vaultOk && hasLegacy) return { action: 'migrate', payload: legacyJson };
+    if (!vaultOk && hasLegacy) return { action: 'use-legacy', payload: legacyJson };
+    return { action: 'none', payload: null };
+  }
+  // Automatic-backup slot document: { meta: [{id, when, reason}], payloads: {id: planJson} }.
+  // Stored as one JSON blob in the vault (or legacy per-slot localStorage keys).
+  function parseAutoSlots(json) {
+    const empty = { meta: [], payloads: {} };
+    if (typeof json !== 'string' || !json) return empty;
+    let d;
+    try { d = JSON.parse(json); } catch (e) { return empty; }
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return empty;
+    const rawPayloads = (d.payloads && typeof d.payloads === 'object' && !Array.isArray(d.payloads)) ? d.payloads : {};
+    const meta = (Array.isArray(d.meta) ? d.meta : [])
+      .filter(s => s && typeof s.id === 'string' && typeof s.when === 'string')
+      .map(s => ({ id: s.id, when: s.when, reason: typeof s.reason === 'string' ? s.reason : '' }));
+    const payloads = {};
+    meta.forEach(s => { if (typeof rawPayloads[s.id] === 'string') payloads[s.id] = rawPayloads[s.id]; });
+    return { meta, payloads };
+  }
+  function serializeAutoSlots(doc) {
+    const d = (doc && typeof doc === 'object' && !Array.isArray(doc)) ? doc : { meta: [], payloads: {} };
+    const rawPayloads = (d.payloads && typeof d.payloads === 'object' && !Array.isArray(d.payloads)) ? d.payloads : {};
+    const meta = (Array.isArray(d.meta) ? d.meta : [])
+      .filter(s => s && typeof s.id === 'string')
+      .map(s => ({ id: s.id, when: typeof s.when === 'string' ? s.when : '', reason: typeof s.reason === 'string' ? s.reason : '' }));
+    const payloads = {};
+    meta.forEach(s => { if (typeof rawPayloads[s.id] === 'string') payloads[s.id] = rawPayloads[s.id]; });
+    return JSON.stringify({ meta, payloads });
+  }
+  function autoSlotWrite(doc, id, payload, when, reason, maxSlots) {
+    const d = parseAutoSlots(serializeAutoSlots(doc));
+    const meta = [{ id: String(id), when: String(when), reason: typeof reason === 'string' ? reason : '' },
+      ...d.meta.filter(s => s.id !== String(id))];
+    const payloads = Object.assign({}, d.payloads);
+    payloads[String(id)] = String(payload);
+    const evicted = [];
+    const max = typeof maxSlots === 'number' && maxSlots > 0 ? Math.floor(maxSlots) : 5;
+    while (meta.length > max) { const s = meta.pop(); evicted.push(s.id); delete payloads[s.id]; }
+    return { doc: { meta, payloads }, evicted };
+  }
+  function autoSlotRead(doc, id) {
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return null;
+    const raw = doc.payloads;
+    return (raw && typeof raw[id] === 'string') ? raw[id] : null;
   }
   function quickAdd(state, amount, category) {
     amount = number(amount, 0.01);
@@ -3511,7 +3589,8 @@
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,
   spendingTrends, monthOverMonth, insights, monthlyReview, weeklySummary, widgetPayload,
   budgetAlerts, payPeriod, periodSpent, payPeriodBudget, incomeStreams, merchantKey, learnMerchant, suggestMerchant, clearMerchantMemory, detectSubscriptions, estimateBillAmount,
-    monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, previewRows, groupTextItems, parseStatementLines, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth };
+    monthlyTotals, avgMonthly, incomeVariability, forecastRange, runway, budget, budgetSummary, ensureAccounts, accountById, syncBalance, saveAccount, removeAccount, contribute, spendingReport, parseCSV, previewCSV, previewRows, groupTextItems, parseStatementLines, exportCSV, holding, portfolio, saveHolding, netWorth, snapshot, cashFlow, cashFlowSankey, forecastOptions, lifeEvent, projectWealth,
+  wrapVault, unwrapVault, vaultMigrationPlan, parseAutoSlots, serializeAutoSlots, autoSlotWrite, autoSlotRead };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CashCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
