@@ -1,3 +1,7 @@
+# 1.64.0
+
+- Encrypt remaining plaintext gaps (#8 remainder): the home-screen widget payload and the connected-coach API key now live in EncryptedSharedPreferences, and pre-update backup files are each their own EncryptedFile vault (the Keystore key survives app updates, so a pending backup still restores after the update). First launch migrates the old plaintext copies into the encrypted stores and wipes the originals; backups written by older versions still restore, with their plaintext file wiped after a successful read. Backups are deleted once verified or restored, and superseded ones are pruned. 7 new JS tests, 231 total pass.
+
 # 1.63.0
 
 - Localization + multi-currency (#89): You → Currency & locale. Pick a number/date locale (auto-detect or a dozen languages), choose a base currency for totals/budgets/forecasts, and give each account its own currency — balances convert using manual rates you type in (e.g. 1 USD = 0.92 EUR). Rates are stored only on this device and never fetched from the network; changing the base currency re-scales your rates automatically. The Accounts tab shows each balance in its own currency with its base-currency equivalent. Saving an account in a currency with no rate set fails with a clear message instead of mis-totalling. PRIVACY.md updated.

@@ -464,9 +464,11 @@ public class MainActivity extends Activity {
         }
         @android.webkit.JavascriptInterface public String writeUpdateBackup(String json, String tag) {
             // Pre-update backup — Alex's no-data-loss requirement. Writes the
-            // current plan to app-specific external storage, which survives app
-            // updates (removed only on uninstall), and records a pending-update
-            // marker so the next launch can verify and offer a one-tap restore.
+            // current plan ENCRYPTED (roadmap #8 remainder: its own
+            // EncryptedFile; the Keystore master key survives app updates) to
+            // app-specific external storage, which survives app updates
+            // (removed only on uninstall), and records a pending-update marker
+            // so the next launch can verify and offer a one-tap restore.
             try {
                 if (json == null || json.length() > 16000000)
                     return "{\"ok\":false,\"error\":\"Backup data too large.\"}";
@@ -475,10 +477,13 @@ public class MainActivity extends Activity {
                     return "{\"ok\":false,\"error\":\"Could not create the backup folder.\"}";
                 String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",
                     java.util.Locale.US).format(new java.util.Date());
-                java.io.File f = new java.io.File(dir, "odddough-backup-" + stamp + ".json");
-                try (java.io.OutputStream out = new java.io.FileOutputStream(f)) {
-                    out.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
+                java.io.File f = new java.io.File(dir, "odddough-backup-" + stamp + ".json.enc");
+                if (!SecureState.writeEncryptedFile(MainActivity.this, f, json))
+                    return "{\"ok\":false,\"error\":\"Could not save the pre-update backup.\"}";
+                // Prune superseded backups — only the pending one is ever restored.
+                java.io.File[] olds = dir.listFiles((d, name) ->
+                    name.startsWith("odddough-backup-") && !name.equals(f.getName()));
+                if (olds != null) for (java.io.File o : olds) o.delete();
                 getSharedPreferences("updater", MODE_PRIVATE).edit()
                     .putString("pending", new org.json.JSONObject()
                         .put("tag", tag == null ? "" : tag)
@@ -495,10 +500,32 @@ public class MainActivity extends Activity {
             return s == null ? "null" : s;
         }
         @android.webkit.JavascriptInterface public void clearPendingUpdate() {
+            // The pending backup has served its purpose (data intact, or just
+            // restored) — drop the marker and delete the backup file so no
+            // stale copy of the plan lingers on disk.
+            try {
+                String s = getSharedPreferences("updater", MODE_PRIVATE).getString("pending", null);
+                if (s != null) {
+                    String path = new org.json.JSONObject(s).optString("backupPath", "");
+                    deleteUpdateBackupFile(path);
+                }
+            } catch (Exception e) { /* marker unreadable; still clear it */ }
             getSharedPreferences("updater", MODE_PRIVATE).edit().remove("pending").apply();
+        }
+        /** Deletes a backup file only when it sits inside our own updates dir. */
+        private void deleteUpdateBackupFile(String path) {
+            try {
+                java.io.File dir = new java.io.File(getExternalFilesDir(null), "updates");
+                java.io.File f = new java.io.File(path == null ? "" : path);
+                if (f.getCanonicalPath().startsWith(dir.getCanonicalPath() + java.io.File.separator)
+                        && f.getName().startsWith("odddough-backup-")) f.delete();
+            } catch (Exception e) { /* best effort */ }
         }
         @android.webkit.JavascriptInterface public String readBackupFile(String path) {
             // Reads only files inside our own updates dir — never an arbitrary path.
+            // .enc files are EncryptedFile vaults; anything else is a legacy
+            // plaintext backup from <=1.63.0, which is wiped after a successful
+            // read so the plaintext original never lingers.
             try {
                 java.io.File dir = new java.io.File(getExternalFilesDir(null), "updates");
                 java.io.File f = new java.io.File(path == null ? "" : path);
@@ -506,18 +533,43 @@ public class MainActivity extends Activity {
                     return "{\"ok\":false,\"error\":\"Invalid backup path.\"}";
                 if (!f.isFile() || f.length() > 16000000)
                     return "{\"ok\":false,\"error\":\"Backup file not found.\"}";
-                byte[] bytes;
-                try (java.io.InputStream in = new java.io.FileInputStream(f);
-                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-                    byte[] buf = new byte[8192]; int n;
-                    while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                    bytes = out.toByteArray();
+                String json;
+                boolean legacy = !f.getName().endsWith(".enc");
+                if (legacy) {
+                    byte[] bytes;
+                    try (java.io.InputStream in = new java.io.FileInputStream(f);
+                         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                        byte[] buf = new byte[8192]; int n;
+                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                        bytes = out.toByteArray();
+                    }
+                    json = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                } else {
+                    json = SecureState.readEncryptedFile(MainActivity.this, f);
+                    if (json == null)
+                        return "{\"ok\":false,\"error\":\"Could not read the backup file.\"}";
                 }
-                return "{\"ok\":true,\"json\":" + org.json.JSONObject.quote(
-                    new String(bytes, java.nio.charset.StandardCharsets.UTF_8)) + "}";
+                if (legacy) f.delete(); // wipe the plaintext original
+                return "{\"ok\":true,\"json\":" + org.json.JSONObject.quote(json) + "}";
             } catch (Exception e) {
                 return "{\"ok\":false,\"error\":\"Could not read the backup file.\"}";
             }
+        }
+        @android.webkit.JavascriptInterface public String aiKeySave(String key) {
+            // Connected-coach API key (roadmap #8 remainder): stored in
+            // EncryptedSharedPreferences, never in WebView storage. Returns
+            // ok=false when the vault is unavailable so the web side keeps
+            // its localStorage fallback instead of silently storing plaintext.
+            try {
+                if (key != null && key.length() > 500) return "{\"ok\":false}";
+                return "{\"ok\":" + SecureState.saveAiKey(MainActivity.this, key == null ? "" : key) + "}";
+            } catch (Exception e) { return "{\"ok\":false}"; }
+        }
+        @android.webkit.JavascriptInterface public String aiKeyLoad() {
+            try {
+                String k = SecureState.loadAiKey(MainActivity.this);
+                return k == null ? "null" : org.json.JSONObject.quote(k);
+            } catch (Exception e) { return "null"; }
         }
         @android.webkit.JavascriptInterface public String startUpdateDownload(String apkUrl) {
             try {

@@ -20,10 +20,11 @@ import org.json.JSONObject;
  * Shared scaffolding for the home-screen widgets (roadmap #12 safe-to-spend,
  * #85 upcoming bills). The web app pushes a compact JSON payload through
  * NativeBridge.syncWidgets() on every save; it is validated here, stored in
- * SharedPreferences, and rendered into both widgets. A daily alarm re-renders
- * so "days until payday" and overdue counts stay fresh without opening the
- * app. Stored data is local-only and never leaves the device; note that
- * widget contents are visible on the home screen without unlocking the app.
+ * EncryptedSharedPreferences (roadmap #8 remainder), and rendered into both
+ * widgets. A daily alarm re-renders so "days until payday" and overdue counts
+ * stay fresh without opening the app. Stored data is local-only and never
+ * leaves the device; note that widget contents are visible on the home
+ * screen without unlocking the app.
  */
 public class HomeWidgets extends BroadcastReceiver {
     private static final String PREFS = "widgets";
@@ -60,7 +61,7 @@ public class HomeWidgets extends BroadcastReceiver {
             out.put("bills", clean);
             out.put("overdue", Math.max(0, in.optInt("overdue", 0)));
             out.put("storedOn", dateString(Calendar.getInstance()));
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, out.toString()).apply();
+            SecureState.securePrefs(context, PREFS).edit().putString(KEY, out.toString()).apply();
             schedule(context);
             updateAll(context);
         } catch (Exception e) { /* keep the last good payload */ }
@@ -162,7 +163,7 @@ public class HomeWidgets extends BroadcastReceiver {
     }
 
     private static JSONObject payload(Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        SharedPreferences prefs = SecureState.securePrefs(context, PREFS);
         String stored = prefs.getString(KEY, null);
         if (stored == null) return null;
         try { return new JSONObject(stored); } catch (Exception e) { return null; }

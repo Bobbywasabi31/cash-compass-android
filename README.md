@@ -250,7 +250,7 @@ Open **You → Currency & locale** to pick a number/date locale, a base currency
 
 ## New in 1.62: at-rest encryption
 
-Your plan and automatic backups are stored in an encrypted on-device vault (AES-256-GCM, key in the Android Keystore) — no passphrase needed. The first launch migrates your existing data and wipes the plaintext copy. **You → Your data** shows the encryption status.
+Your plan and automatic backups are stored in an encrypted on-device vault (AES-256-GCM, key in the Android Keystore) — no passphrase needed. The first launch migrates your existing data and wipes the plaintext copy. Since 1.64.0 the home-screen widget payload, the connected-coach API key, and the pre-update backup files are encrypted too (the last of the #8 plaintext gaps). **You → Your data** shows the encryption status.
 
 ## New in 1.61: bank-alert notification capture
 
