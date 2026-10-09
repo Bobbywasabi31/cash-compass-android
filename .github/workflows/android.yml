@@ -60,13 +60,22 @@ jobs:
             sleep 2
             adb shell screencap -p /sdcard/odddough.png
             adb pull /sdcard/odddough.png app/build/odddough.png
+      - name: Resolve release naming
+        # Single source of truth for versioned names: versionName in app/build.gradle.kts.
+        # The tag, title, and APK filename below all come from this step's outputs —
+        # a tag/title mismatch (e.g. v1.60.1-preview.91 tagged with a 1.61.0 title)
+        # is structurally impossible now.
+        run: |
+          scripts/release-naming.sh app/build.gradle.kts "$GITHUB_RUN_NUMBER" \
+            | while IFS='=' read -r k v; do echo "$k=$v" >> "$GITHUB_ENV"; done
+          cat "$GITHUB_ENV" | grep -E '^(VERSION|TAG|TITLE|APK)=' || true
       - name: Prepare verified APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/OddDough-1.64.0-preview.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs dist/OddDough-1.64.0-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/${{ env.APK }}"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs "dist/${{ env.APK }}"
           cd dist
-          sha256sum OddDough-1.64.0-preview.apk > SHA256SUMS.txt
+          sha256sum "${{ env.APK }}" > SHA256SUMS.txt
       - name: Save build and test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,7 +92,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v1.64.0-preview.${GITHUB_RUN_NUMBER}"
+          # Tag and title come from the Resolve release naming step — one version source.
           # Only the latest version's notes — keeps the releases page short
           awk '/^# /{if(++c>1) exit} {print}' RELEASE_NOTES.md > dist/NOTES.md
-          gh release create "$tag" dist/OddDough-1.64.0-preview.apk dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "OddDough 1.64.0 preview ${GITHUB_RUN_NUMBER}" --prerelease --notes-file dist/NOTES.md
+          gh release create "$TAG" "dist/$APK" dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "$TITLE" --prerelease --notes-file dist/NOTES.md
