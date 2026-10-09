@@ -26,8 +26,100 @@
     if (typeof value !== 'string' || !value.trim() || value.trim().length > 80) throw Error('Enter a name of 1–80 characters.');
     return value.trim();
   }
+  // Localization + multi-currency (roadmap #89). The engine always works in
+  // integer cents of whatever currency a value was entered in; accounts can
+  // each have their own currency and totals convert to a user-chosen base.
+  // Rates are manual, user-entered, offline-only — never fetched.
+  const CURRENCIES = [
+    ['USD','US dollar'],['EUR','Euro'],['GBP','British pound'],['JPY','Japanese yen'],
+    ['CAD','Canadian dollar'],['AUD','Australian dollar'],['CHF','Swiss franc'],
+    ['CNY','Chinese yuan'],['MXN','Mexican peso'],['INR','Indian rupee'],
+    ['BRL','Brazilian real'],['SEK','Swedish krona'],['NOK','Norwegian krone'],
+    ['DKK','Danish krone'],['PLN','Polish złoty'],['ZAR','South African rand'],
+    ['KRW','South Korean won'],['SGD','Singapore dollar'],['HKD','Hong Kong dollar'],
+    ['NZD','New Zealand dollar'],['TWD','Taiwan dollar'],['PHP','Philippine peso']
+  ].map(([code, name]) => ({ code, name }));
+  const currencyCodes = () => CURRENCIES.map(c => c.code);
+  function currencyCode(value) {
+    const code = String(value == null ? '' : value).trim().toUpperCase();
+    if (!currencyCodes().includes(code)) throw Error('Choose a supported currency.');
+    return code;
+  }
+  function currencySettings(x) {
+    const s = x && typeof x === 'object' && !Array.isArray(x) ? x : {};
+    const base = s.base ? currencyCode(s.base) : 'USD';
+    let locale = 'auto';
+    if (s.locale && s.locale !== 'auto') {
+      const tag = String(s.locale).trim();
+      if (!/^[A-Za-z]{2,3}(-[A-Za-z]{2,8})?$/.test(tag)) throw Error('Choose a valid locale like de-DE.');
+      locale = tag;
+    }
+    const rates = {};
+    const raw = s.rates && typeof s.rates === 'object' && !Array.isArray(s.rates) ? s.rates : {};
+    for (const [code, rate] of Object.entries(raw)) {
+      const c = currencyCode(code);
+      if (c === base) continue;
+      const r = Number(rate);
+      if (!Number.isFinite(r) || r <= 0 || r > 1e9) throw Error('Enter a valid rate for ' + c + '.');
+      rates[c] = r;
+    }
+    if (Object.keys(rates).length > 40) throw Error('Too many exchange rates.');
+    return { base, locale, rates };
+  }
+  // Rate semantics: rates[code] = units of `code` per 1 unit of base currency.
+  // "1 USD = 0.92 EUR" with base USD means rates.EUR = 0.92.
+  function rateFor(settings, code) {
+    const s = currencySettings(settings);
+    const c = currencyCode(code);
+    if (c === s.base) return 1;
+    if (!Number.isFinite(s.rates[c])) throw Error('Set the ' + c + ' rate in You → Currency & locale first.');
+    return s.rates[c];
+  }
+  function convertCents(amountCents, from, to, settings) {
+    if (!Number.isInteger(amountCents)) throw Error('Convert whole cents.');
+    const s = currencySettings(settings);
+    const f = currencyCode(from), t = currencyCode(to);
+    if (f === t) return amountCents;
+    const rFrom = rateFor(s, f), rTo = rateFor(s, t);
+    return Math.round(amountCents / rFrom * rTo); // via base, single rounding
+  }
+  // Rebase manual rates onto a new base currency: rate'[c] = rate[c]/rate[new].
+  function rebaseRates(settings, newBase) {
+    const s = currencySettings(settings);
+    const nb = currencyCode(newBase);
+    if (nb === s.base) return { ...s.rates };
+    const perOldBase = c => (c === s.base ? 1 : s.rates[c]);
+    if (!Number.isFinite(perOldBase(nb))) throw Error('Set the ' + nb + ' rate before making it the base currency.');
+    const out = {};
+    for (const c of Object.keys(s.rates)) if (c !== nb) out[c] = s.rates[c] / perOldBase(nb);
+    out[s.base] = 1 / perOldBase(nb);
+    return out;
+  }
+  function accountCurrency(state, a) {
+    return (a && a.currency) ? currencyCode(a.currency) : 'USD';
+  }
+  function totalInBase(state) {
+    const s = currencySettings(state && state.currency);
+    let sum = 0;
+    for (const a of ensureAccounts(state)) sum += convertCents(cents(a.balance), accountCurrency(state, a), s.base, s);
+    return dollars(sum);
+  }
+  function localeTag(settings) {
+    const s = currencySettings(settings);
+    return s.locale === 'auto' ? undefined : s.locale;
+  }
+  function formatMoney(amount, code, tag) {
+    const c = String(code == null ? 'USD' : code).toUpperCase();
+    try { return new Intl.NumberFormat(tag || undefined, { style: 'currency', currency: c }).format(Number(amount)); }
+    catch (e) { return c + ' ' + Number(amount).toFixed(2); }
+  }
+  function formatDate(value, tag) {
+    if (!validDate(value)) return String(value == null ? '' : value);
+    try { return new Intl.DateTimeFormat(tag || undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value + 'T12:00:00')); }
+    catch (e) { return value; }
+  }
   function blank() {
-    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, weeklySummary: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
+    return { version: 6, demo: false, profile: { name: 'there', balance: 0, hourlyRate: 0, taxRate: 0, buffer: 0, taxHeld: 0, sideTaxRate: 25, taxReminder: false }, incomes: [], bills: [], goals: [], transactions: [], budgets: [], budgetMoves: [], sinkingFunds: [], debts: [], milestones: [], dividends: [], contributions: [], manualAssets: [], accounts: [], reminders: false, weeklySummary: false, holdings: [], balanceHistory: [], lifeEvents: [], merchantMemory: {}, forecastSettings: forecastOptions(), currency: currencySettings(), hiddenCards: [], savedFilters: [], rules: [], wallet: walletData() };
   }
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Error('This is not an OddDough backup.');
@@ -35,6 +127,7 @@
     const result = blank();
     result.demo = raw.demo === true; result.reminders=raw.reminders===true; result.weeklySummary=raw.weeklySummary===true;
     result.profile = { name: label(p.name), balance: number(p.balance, -MAX), hourlyRate: number(p.hourlyRate), taxRate: number(p.taxRate, 0, 100), buffer: number(p.buffer || 0), taxHeld: number(p.taxHeld || 0), sideTaxRate: number(p.sideTaxRate == null ? 25 : p.sideTaxRate, 0, 100), taxReminder: p.taxReminder === true };
+    result.currency=currencySettings(raw.currency); // before accounts: syncBalance converts via these rates
     ['incomes', 'bills', 'goals'].forEach(kind => {
       if (!Array.isArray(raw[kind]) || raw[kind].length > 10000) throw Error('Invalid ' + kind + ' list.');
       result[kind] = raw[kind].map((item, index) => {
@@ -2957,10 +3050,12 @@
   }
   function account(x) {
     if (!x || !/^[a-zA-Z0-9_-]{1,100}$/.test(x.id) || !['cash','checking','savings','credit'].includes(x.type)) throw Error('Choose a valid account type.');
-    return {id:x.id,label:label(x.label),type:x.type,balance:number(x.balance,-MAX)};
+    return {id:x.id,label:label(x.label),type:x.type,balance:number(x.balance,-MAX),currency:x.currency?currencyCode(x.currency):'USD'};
   }
   function syncBalance(state) {
-    state.profile.balance=number(dollars(ensureAccounts(state).reduce((sum,a)=>sum+cents(a.balance),0)),-MAX);
+    // Net balance is kept in the base currency; foreign accounts convert via manual rates.
+    const s=currencySettings(state.currency);
+    state.profile.balance=number(dollars(ensureAccounts(state).reduce((sum,a)=>sum+convertCents(cents(a.balance),accountCurrency(state,a),s.base,s),0)),-MAX);
   }
   function accountById(state,id) {
     const a=ensureAccounts(state).find(a=>a.id === (id || state.accounts[0].id));
@@ -2971,14 +3066,16 @@
     const i=accounts.findIndex(x=>x.id===a.id);
     if(accounts.some(x=>x.id!==a.id && x.label.toLowerCase()===a.label.toLowerCase())) throw Error('Use a unique account name.');
     if(i<0) accounts.push(a);else accounts[i]=a;
-    const balance=number(dollars(accounts.reduce((sum,x)=>sum+cents(x.balance),0)),-MAX);
-    state.accounts=accounts;state.profile.balance=balance;
+    const probe={...state,accounts,profile:{...state.profile}};syncBalance(probe); // validates rates before committing
+    state.accounts=accounts;state.profile.balance=probe.profile.balance;
   }
   function removeAccount(state,id) {
     const a=accountById(state,id);
     if(state.accounts.length===1 || cents(a.balance)!==0) throw Error('Keep at least one account and transfer or reconcile its balance to zero first.');
     if(state.transactions.some(t=>t.accountId===id || t.toAccountId===id) || state.bills.concat(state.incomes).some(x=>x.accountId===id)) throw Error('This account is used by history or planned payments. Keep it to preserve those records.');
-    state.accounts=state.accounts.filter(x=>x.id!==id);syncBalance(state);
+    const accounts=state.accounts.filter(x=>x.id!==id);
+    const probe={...state,accounts,profile:{...state.profile}};syncBalance(probe); // validates before committing
+    state.accounts=accounts;state.profile.balance=probe.profile.balance;
   }
   function applyLedger(state, old, replacement) {
     const accounts=ensureAccounts(state).map(a=>({...a}));
@@ -3584,6 +3681,7 @@
     return state;
   }
   const api = { quickAdd, encryptBackup, decryptBackup, walletData, parseWallet, receiveWallet, resolveWallet, reconcileCSV, applyReconciliation, moveBudget, debtPayoff, sinkingFunds, goalPaycheckAmount, milestoneProgress, loanAmortization, holdingGains, dividendStats, dripProjection, contributionStats, manualNetWorth, yearInReview, seasonalView, spendHeatmap, dailyBalanceForecast, anomalies, parseQuickEntry, explainNumber, suggestCategory, reportCSV, shareSummary, fullExport, addAnnotation, saveCustomCategory, detectPaychecks, saveCreditCard, creditCardStatus, planCardPayment, saveSeason, seasonCalendar, parseOFX, refreshPrices, number, cents, dollars, localDate, validDate, daysBetween, addDays, label, blank, normalize, demo, forecast, settle, netCents, reservesCents, repeat, nextDate, expand, transaction, saveTransaction, removeTransaction, splitTransaction, findDuplicates, mergeDuplicates,
+  CURRENCIES, currencyCode, currencySettings, localeTag, rateFor, convertCents, rebaseRates, accountCurrency, totalInBase, formatMoney, formatDate,
   makeRule, matchRule, applyRules, previewRule, applyRule, refundTarget,
   emergencyFund, reimbursableSummary, markReimbursed, detectTransferPairs, taxSetAside,
   paycheckEstimate, incomeSmoothing, gigIncomeStats, topMerchants, savingsRate,

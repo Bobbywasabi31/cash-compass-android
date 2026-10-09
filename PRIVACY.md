@@ -30,3 +30,7 @@ Optional, and only active once you add a widget to your home screen. Each save i
 ## Optional app lock
 
 Disabled by default. When enabled (You → App lock), opening OddDough asks for your fingerprint/face or your phone's PIN, pattern, or password, and the app's preview is hidden in the recent-apps screen. Authentication is handled entirely by Android's system prompt: OddDough never sees, stores, or transmits biometric data or your device credential. Only the on/off preference is stored on-device. If the phone has no screen lock set, app lock cannot be enabled — and if the screen lock is later removed, app lock disarms itself rather than locking you out.
+
+## Currency & locale preferences
+
+The base currency, number/date locale, manual exchange rates, and each account's currency (You → Currency & locale) are stored only on this device as part of your plan. Exchange rates are typed in by you — OddDough never contacts a network service for rates, and currency preferences are never uploaded or shared.

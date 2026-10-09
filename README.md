@@ -244,6 +244,10 @@ Proportional bands show recorded income flowing into spending groups and **Saved
 
 Groups below 3% of their side's total are combined into **Other**. The diagram shows up to five named income groups and six named expense groups; additional groups also join Other. An existing Other category joins the same bucket. Open **View exact amounts and Other details** to see every included group and cent. On phones, swipe the chart horizontally or use the stacked tables. This is a read-only view of recorded transactions; no new permissions, data collection, or backup schema changes.
 
+## New in 1.63: localization + multi-currency
+
+Open **You → Currency & locale** to pick a number/date locale, a base currency for totals, budgets, and forecasts, and a currency per account. Exchange rates are manual and offline-only — type them in (e.g. 1 USD = 0.92 EUR); nothing is ever fetched from the network. Changing the base currency re-scales your rates automatically, and the Accounts tab shows each balance in its own currency with its base-currency equivalent.
+
 ## New in 1.62: at-rest encryption
 
 Your plan and automatic backups are stored in an encrypted on-device vault (AES-256-GCM, key in the Android Keystore) — no passphrase needed. The first launch migrates your existing data and wipes the plaintext copy. **You → Your data** shows the encryption status.

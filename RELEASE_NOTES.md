@@ -1,3 +1,7 @@
+# 1.63.0
+
+- Localization + multi-currency (#89): You → Currency & locale. Pick a number/date locale (auto-detect or a dozen languages), choose a base currency for totals/budgets/forecasts, and give each account its own currency — balances convert using manual rates you type in (e.g. 1 USD = 0.92 EUR). Rates are stored only on this device and never fetched from the network; changing the base currency re-scales your rates automatically. The Accounts tab shows each balance in its own currency with its base-currency equivalent. Saving an account in a currency with no rate set fails with a clear message instead of mis-totalling. PRIVACY.md updated.
+
 # 1.62.0
 
 - At-rest encryption (#8 remainder): your plan and automatic backups are now stored in an encrypted vault on the device — AES-256-GCM via Jetpack Security, with the key held by the Android Keystore (hardware-backed where supported). No passphrase needed; the OS guards the key, so the app's data files are ciphertext to anything reading them directly. First launch migrates your existing plan into the vault and wipes the old plaintext copy, with a timestamped wrapper that always picks the newest copy so a failed migration can never restore stale data. You → Your data now notes the encryption status. Manual passphrase-encrypted backups are unchanged.
